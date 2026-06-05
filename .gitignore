@@ -1,0 +1,30 @@
+# 生成输出 / 实验结果
+output_*/
+
+# 日志
+logs/
+*.log
+
+# 临时文件
+tmp/
+__pycache__/
+*.py[cod]
+
+# 大文件（图片/模型/数据）
+*.jpg
+*.png
+*.pth
+*.pt
+*.bin
+*.onnx
+
+# 环境变量 / 密钥
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# 系统
+.DS_Store
+Thumbs.db

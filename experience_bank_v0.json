@@ -1,0 +1,360 @@
+{
+  "version": "experience_bank_v1",
+  "source": [
+    "manual_vpr_experience",
+    "output_0603_v1"
+  ],
+  "role": "VPR image augmentation experience bank. The goal is high-quality positive augmentation for Visual Place Recognition, prioritizing place identity, geometry preservation, realistic environmental change, and realistic dynamic occlusion.",
+  "dataset_targets": {
+    "route_ratio": {
+      "skip": 0.4,
+      "global": 0.3,
+      "lightx2v": 0.3,
+      "local_dual_balance": "local and dual should stay close to 1:1 when both are visually reasonable",
+      "tolerance": 0.05
+    },
+    "weather_ratio": {
+      "rain": 0.25,
+      "snow": 0.2,
+      "night": 0.2,
+      "overcast": 0.2,
+      "fog": 0.15,
+      "tolerance": 0.05,
+      "note": "Weather coverage is a dataset design target. It should guide sampling but must not override scene suitability or hard skip decisions."
+    }
+  },
+  "route_policy": {
+    "target_ratio": {
+      "skip": 0.4,
+      "global": 0.3,
+      "lightx2v": 0.3
+    },
+    "hard_skip": [
+      "building_closeup",
+      "wall_closeup",
+      "window_closeup",
+      "door_closeup",
+      "storefront_closeup",
+      "sign_closeup",
+      "no_street_space",
+      "no_valid_occlusion_surface",
+      "no_road_geometry",
+      "no_place_identity_context"
+    ],
+    "route_rules": {
+      "skip": [
+        "building local close-up",
+        "door/window/sign/storefront crop",
+        "wall fragment",
+        "no clear street space",
+        "no legal occlusion placement surface"
+      ],
+      "global": [
+        "normal street scene suitable for weather change",
+        "occlusion placement is unclear or unsafe",
+        "preserve fixed place identity"
+      ],
+      "local": [
+        "clear legal vehicle or person placement exists",
+        "local bucket needs samples",
+        "weather change is unnecessary or less important"
+      ],
+      "dual": [
+        "clear legal vehicle or person placement exists",
+        "weather change is also suitable",
+        "dual bucket needs samples"
+      ]
+    }
+  },
+  "weather_statistics": {
+    "rain": {
+      "priority": 1,
+      "status": "recommended",
+      "experience": "most stable"
+    },
+    "overcast": {
+      "priority": 2,
+      "status": "recommended",
+      "experience": "stable"
+    },
+    "fog": {
+      "priority": 3,
+      "status": "experimental",
+      "experience": "medium risk"
+    },
+    "snow": {
+      "priority": 4,
+      "status": "experimental",
+      "experience": "medium-high risk"
+    },
+    "night": {
+      "priority": 5,
+      "status": "high_risk",
+      "experience": "highest risk for vehicle dual augmentation"
+    }
+  },
+  "occlusion_statistics": {
+    "vehicle": {
+      "priority": 1,
+      "status": "preferred",
+      "experience": "Vehicle occlusion should be preferred whenever a traffic lane, curbside lane, parking bay, or roadside parking area is visible."
+    },
+    "person": {
+      "priority": 2,
+      "status": "fallback",
+      "experience": "Use person only when no reasonable vehicle placement exists but a sidewalk, curb, crosswalk, or roadside pavement is clear."
+    }
+  },
+  "artifact_policy": {
+    "warning_only": [
+      "black_vehicle_block",
+      "sign_or_storefront_color_deformation"
+    ],
+    "major_fail": [
+      "road_geometry_change",
+      "facade_geometry_deformation",
+      "floating_vehicle",
+      "vehicle_on_wall",
+      "vehicle_on_sky",
+      "building_structure_change"
+    ]
+  },
+  "dual_vehicle_failures": {
+    "black_vehicle_block": {
+      "rate": 0.667,
+      "severity": "warning",
+      "note": "Current pixel heuristic over-kills visually acceptable dark vehicles; keep as warning."
+    },
+    "sign_or_storefront_color_deformation": {
+      "rate": 0.595,
+      "severity": "warning",
+      "note": "Current pixel heuristic over-kills visually acceptable lighting/color changes; keep as warning."
+    },
+    "weak_dual_weather_or_occlusion": {
+      "rate": 0.452,
+      "severity": "quality_warning"
+    },
+    "weak_or_ineffective_occlusion": {
+      "rate": 0.238,
+      "severity": "quality_warning"
+    }
+  },
+  "prompt_rules": {
+    "prompt_generation_policy": {
+      "positive_prompt": [
+        "Use compact model-specific templates.",
+        "Put IC-Light global weather, photorealistic street-view, facade preservation, and no-stylization constraints within the first 77 CLIP tokens.",
+        "For LightX2V vehicle prompts, mention only vehicle attributes and legal vehicle placement.",
+        "For LightX2V person prompts, mention only pedestrian attributes and legal pedestrian placement.",
+        "Do not mix person instructions into vehicle prompts.",
+        "Do not include forbidden artifact names in the positive prompt."
+      ],
+      "negative_prompt": [
+        "Put black block, blob, silhouette, pasted, floating, wall, sky, storefront deformation, and painterly/style terms only in the negative prompt.",
+        "Use no-oil-painting and no-stylization constraints for IC-Light global generations."
+      ]
+    },
+    "global": {
+      "required": [
+        "preserve original building layout",
+        "preserve street layout",
+        "preserve road geometry",
+        "preserve storefront structure",
+        "preserve traffic signs",
+        "preserve place identity",
+        "photorealistic street-view image",
+        "natural exposure"
+      ],
+      "forbidden": [
+        "city names",
+        "cyberpunk",
+        "fantasy",
+        "surreal",
+        "cinematic",
+        "painterly",
+        "artistic",
+        "colorful neon",
+        "sci-fi"
+      ]
+    },
+    "vehicle": {
+      "preferred_size": "small_to_medium",
+      "max_area_ratio": 0.08,
+      "occlusion_strength": "moderate occlusion",
+      "legal_positions": [
+        "traffic lane",
+        "curbside lane",
+        "parking bay",
+        "roadside parking area"
+      ],
+      "required": [
+        "realistic vehicle",
+        "natural scale",
+        "visible windows",
+        "visible wheels",
+        "visible body details",
+        "realistic texture",
+        "natural paint color",
+        "road-perspective aligned",
+        "lane aligned",
+        "natural shadow"
+      ],
+      "forbidden": [
+        "black blob vehicle",
+        "dark blob vehicle",
+        "silhouette vehicle",
+        "pasted vehicle",
+        "sticker vehicle",
+        "flat pasted vehicle",
+        "featureless vehicle",
+        "floating vehicle",
+        "vehicle on wall",
+        "vehicle on sky",
+        "vehicle on building facade",
+        "vehicle covering main storefront",
+        "vehicle covering main facade",
+        "heavy occlusion",
+        "massive occlusion",
+        "extreme obstruction"
+      ]
+    },
+    "person": {
+      "status": "fallback",
+      "legal_positions": [
+        "sidewalk",
+        "crosswalk",
+        "curb",
+        "roadside pavement"
+      ],
+      "required": [
+        "full-body pedestrian",
+        "realistic scale",
+        "natural pose",
+        "feet touching valid ground plane"
+      ],
+      "forbidden": [
+        "black silhouette",
+        "shadow person",
+        "pasted pedestrian",
+        "floating pedestrian",
+        "tiny pedestrian",
+        "border pedestrian"
+      ]
+    },
+    "preservation": [
+      "preserve building facade",
+      "preserve storefront",
+      "preserve sign",
+      "preserve windows",
+      "preserve doors",
+      "preserve road layout",
+      "preserve road geometry",
+      "preserve traffic signs",
+      "preserve street geometry",
+      "preserve place identity"
+    ]
+  },
+  "recommended_templates": {
+    "global_rain": {
+      "weight": 1.0
+    },
+    "global_overcast": {
+      "weight": 0.85
+    },
+    "global_fog": {
+      "weight": 0.45
+    },
+    "global_snow": {
+      "weight": 0.4
+    },
+    "global_night": {
+      "weight": 0.25
+    },
+    "local_vehicle": {
+      "weight": 0.8
+    },
+    "local_person": {
+      "weight": 0.3
+    },
+    "dual_rain_vehicle": {
+      "weight": 0.65
+    },
+    "dual_overcast_vehicle": {
+      "weight": 0.55
+    },
+    "dual_fog_vehicle": {
+      "weight": 0.25
+    },
+    "dual_snow_vehicle": {
+      "weight": 0.2
+    },
+    "dual_night_vehicle": {
+      "weight": 0.0
+    },
+    "dual_rain_person": {
+      "weight": 0.25
+    },
+    "dual_overcast_person": {
+      "weight": 0.2
+    }
+  },
+  "base_rules": {
+    "global_rain": {
+      "target": "rainy street scene, wet reflective road, overcast sky, subtle visible falling rain",
+      "avoid": "rain only shown as wet ground without atmosphere"
+    },
+    "global_snow": {
+      "target": "snowy street scene, light snow, realistic winter atmosphere, thin snow on sidewalks and parked cars",
+      "avoid": "heavy snow that hides place-defining facades or road geometry"
+    },
+    "global_night": {
+      "target": "night street scene, dim artificial street lighting, reduced saturation, controlled low-light exposure",
+      "avoid": "over-dark image or changed facade/window/fence/tree structure"
+    },
+    "global_overcast": {
+      "target": "overcast street scene, uniform cloudy sky, soft diffuse daylight, muted contrast, no strong shadows",
+      "avoid": "turning the scene into rain, night, or heavy fog"
+    },
+    "global_fog": {
+      "target": "foggy street scene, realistic dense fog with reduced long-range visibility while keeping nearby road and facade geometry readable",
+      "avoid": "fog so heavy that it hides place-defining facades, signs, lane markings, or road layout"
+    },
+    "local_vehicle": {
+      "target": "exactly one normal street vehicle such as car, van, bus, or taxi, wheels aligned with road perspective, natural scale, placed only on visible traffic lane, curbside lane, parking bay, or roadside parking area",
+      "avoid": "pure black vehicle blob, floating vehicle, vehicle on sidewalk, vehicle on wall, vehicle on sky, vehicle on building facade, oversized foreground vehicle, traffic jam, changed road layout"
+    },
+    "local_person": {
+      "target": "exactly one normal full-body pedestrian, natural scale, realistic clothing color, feet firmly on visible sidewalk, curb, crosswalk, or roadside pavement",
+      "avoid": "edge shadow person, black silhouette, dark blob, tiny pedestrian, border pedestrian, floating person, cutout person, crowd"
+    },
+    "dual_rain_vehicle": {
+      "target": "rainy street scene, wet reflective road, plus one normal vehicle on a visible road lane, curb lane, or parking lane with matched rainy lighting",
+      "avoid": "pure black vehicle blob, wrong lane position, traffic jam, changed road layout"
+    },
+    "dual_overcast_vehicle": {
+      "target": "overcast street scene, soft overcast daylight, plus one normal vehicle on a visible road lane, curb lane, or parking lane",
+      "avoid": "pure black vehicle blob, rain artifacts, traffic jam, changed road layout"
+    },
+    "dual_fog_vehicle": {
+      "target": "foggy street scene, realistic fog, plus one normal vehicle on a visible nearby lane or parking lane, with tires aligned to road perspective",
+      "avoid": "pure black vehicle blob, fog hiding road layout, traffic jam, changed road geometry"
+    },
+    "dual_snow_vehicle": {
+      "target": "snowy street scene, light snow, plus one normal vehicle on a visible lane or parking lane with tires aligned to the road perspective",
+      "avoid": "pure black vehicle blob, traffic jam, heavy snow hiding landmarks"
+    },
+    "dual_night_vehicle": {
+      "target": "night street scene plus one normal vehicle on a visible lane or curb lane with subtle realistic headlight spill",
+      "avoid": "pure black vehicle blob, multiple new cars, traffic jam, changed lane geometry"
+    }
+  },
+  "reflection_lessons": [
+    "Occluders must be real street participants, not abstract masks or edge shadows.",
+    "Prefer vehicle occlusion whenever a clear lane, curbside lane, parking bay, or roadside parking area is available.",
+    "A vehicle occluder should be a normal car, van, bus, or taxi placed on a visible road lane, curb lane, or parking lane with tires aligned to the road perspective.",
+    "A person occluder should be a full-body pedestrian walking or standing on visible sidewalk, curb, crosswalk, or road-edge pavement, with feet touching the ground plane.",
+    "Skip close-up facades, wall/window/sign/storefront fragments, sky fragments, and scenes without a valid street surface.",
+    "Use moderate occlusion; avoid heavy, massive, or extreme obstruction.",
+    "Do not include city names such as London, New York, Tokyo, Paris, or Beijing in generation prompts."
+  ]
+}
