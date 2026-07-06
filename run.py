@@ -92,12 +92,23 @@ CLEAR_OUTPUT = os.getenv("REFLECTVPR_CLEAR_OUTPUT", "0").lower() in {"1", "true"
 MOCK = os.getenv("REFLECTVPR_MOCK", "0").lower() in {"1", "true", "yes"}
 START_SERVICES = os.getenv("REFLECTVPR_START_SERVICES", "1").lower() not in {"0", "false", "no"}
 MINE_EXPERIENCE = os.getenv("REFLECTVPR_MINE_EXPERIENCE", "1").lower() not in {"0", "false", "no"}
+RETRY_ROUTER_FAILED = os.getenv("REFLECTVPR_RETRY_ROUTER_FAILED", "0").lower() in {"1", "true", "yes"}
 PROMPT_POLICY_VERSION = os.getenv("REFLECTVPR_PROMPT_POLICY_VERSION", DEFAULT_PROMPT_POLICY_VERSION)
+MODE = os.getenv("REFLECTVPR_MODE", "both").strip().lower()
+if MODE not in {"both", "plan", "generate", "aggregate"}:
+    raise ValueError("REFLECTVPR_MODE must be one of: both, plan, generate, aggregate")
+RECORD_ROOT = Path(os.getenv("REFLECTVPR_RECORD_ROOT", OUTPUT_ROOT / "_records"))
+GENERATE_IDLE_SLEEP = float(os.getenv("REFLECTVPR_GENERATE_IDLE_SLEEP", "5"))
+GENERATE_IDLE_LIMIT = int(os.getenv("REFLECTVPR_GENERATE_IDLE_LIMIT", "120"))
+AGGREGATE_EVERY = int(os.getenv("REFLECTVPR_AGGREGATE_EVERY", "50"))
+CLAIM_TTL_SECONDS = int(os.getenv("REFLECTVPR_CLAIM_TTL_SECONDS", "3600"))
+MAX_ROUTER_FAILED_STREAK = int(os.getenv("REFLECTVPR_MAX_ROUTER_FAILED_STREAK", "20"))
 
 # Real experiments should fail loudly if a generation service is not loaded.
 # This prevents early startup/mock images with black rectangles from entering output.
 os.environ.setdefault("REFLECTVPR_DISABLE_SERVICE_MOCK", "1")
 os.environ.setdefault("REFLECTVPR_DISABLE_MOCK", "1")
+os.environ.setdefault("HF_HOME", "/media/data1/zhangjingyi/.cache/huggingface")
 os.environ.setdefault("NO_PROXY", "127.0.0.1,localhost")
 os.environ.setdefault("no_proxy", "127.0.0.1,localhost")
 
@@ -138,6 +149,28 @@ DECISION_KEYS = {
     "quota_reason",
     "experience_bank_version",
     "prompt_policy_version",
+    "router_failed",
+    "router_status",
+    "router_error_type",
+    "router_error",
+    "original_vehicle_crowded",
+    "original_vehicle_crowding_reasons",
+    "local_vehicle_policy",
+    "selected_weather",
+    "weather_selection_reason",
+    "scene_policy_restricted_weather",
+    "scene_policy_restriction_reasons",
+    "scene_weather_original",
+    "scene_weather_restricted_to",
+    "global_weather_counts_before",
+    "global_weather_pass_counts_before",
+    "global_weather_pass_counts_projected_after",
+    "global_weather_target_ratios",
+    "global_weather_candidate_pool",
+    "global_weather_deficits",
+    "global_weather_quota_basis",
+    "global_iclight_highres_denoise",
+    "global_scene_policy",
 }
 
 
@@ -249,12 +282,166 @@ def write_records(path: Path, records: list[dict]) -> None:
     tmp_path.replace(path)
 
 
+def source_key_for_path(path: str | Path) -> str:
+    return str(Path(path))
+
+
+def record_path(kind: str, image_path: str | Path) -> Path:
+    path = Path(image_path)
+    return RECORD_ROOT / kind / path.parent.name / f"{path.stem}.json"
+
+
+def claim_path(kind: str, image_path: str | Path) -> Path:
+    path = Path(image_path)
+    return RECORD_ROOT / "claims" / kind / path.parent.name / f"{path.stem}.lock"
+
+
+def atomic_write_json(path: Path, payload: dict | list[dict]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    tmp_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    tmp_path.replace(path)
+
+
+def load_record_file(path: Path) -> dict | None:
+    if not path.exists():
+        return None
+    try:
+        record = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        print(f"[records] ignore broken json: {path} error={exc}", flush=True)
+        return None
+    if not isinstance(record, dict):
+        print(f"[records] ignore non-object json: {path}", flush=True)
+        return None
+    return record
+
+
+def try_claim(kind: str, image_path: str | Path) -> Path | None:
+    path = claim_path(kind, image_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    now = time.time()
+    if path.exists() and now - path.stat().st_mtime > CLAIM_TTL_SECONDS:
+        try:
+            path.unlink()
+        except OSError:
+            pass
+    try:
+        fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        return None
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        handle.write(f"pid={os.getpid()} time={datetime.now().isoformat()}\n")
+    return path
+
+
+def release_claim(path: Path | None) -> None:
+    if not path:
+        return
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        pass
+
+
+def load_single_records(kind: str) -> list[dict]:
+    root = RECORD_ROOT / kind
+    if not root.exists():
+        return []
+    records: list[dict] = []
+    for path in sorted(root.glob("*/*.json")):
+        record = load_record_file(path)
+        if record:
+            records.append(record)
+    print(f"[records] loaded {len(records)} single {kind} records from {root}", flush=True)
+    return records
+
+
+def merge_records(*groups: list[dict]) -> list[dict]:
+    by_source: dict[str, dict] = {}
+    anonymous: list[dict] = []
+    for records in groups:
+        for record in records:
+            source_path = record.get("source_path")
+            if source_path:
+                by_source[source_key_for_path(source_path)] = record
+            else:
+                anonymous.append(record)
+    return anonymous + list(by_source.values())
+
+
+def aggregate_city_records(kind: str, city: str) -> list[dict]:
+    legacy_path = decision_json_for_city(city) if kind == "decisions" else reflect_json_for_city(city)
+    legacy = load_records(legacy_path) if legacy_path.exists() else []
+    single_root = RECORD_ROOT / kind / city
+    singles = []
+    if single_root.exists():
+        for path in sorted(single_root.glob("*.json")):
+            record = load_record_file(path)
+            if record:
+                singles.append(record)
+    return merge_records(legacy, singles)
+
+
+def aggregate_records() -> None:
+    lock = RECORD_ROOT / "aggregate.lock"
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        print("[aggregate] another process is aggregating; skip", flush=True)
+        return
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        handle.write(f"pid={os.getpid()} time={datetime.now().isoformat()}\n")
+    try:
+        for city in CITY_NAMES:
+            decisions = [to_decision_record(record) for record in aggregate_city_records("decisions", city)]
+            reflects = aggregate_city_records("reflects", city)
+            write_records(decision_json_for_city(city), decisions)
+            write_records(reflect_json_for_city(city), reflects)
+            print(
+                f"[aggregate] city={city} decisions={len(decisions)} reflects={len(reflects)}",
+                flush=True,
+            )
+    finally:
+        release_claim(lock)
+
+
 def to_decision_record(record: dict) -> dict:
     return {key: record[key] for key in DECISION_KEYS if key in record}
 
 
 def is_current_policy(record: dict) -> bool:
     return record.get("prompt_policy_version") == PROMPT_POLICY_VERSION
+
+
+def is_router_failed(record: dict) -> bool:
+    if bool(record.get("router_failed")) or record.get("route") == "router_failed":
+        return True
+    failure_text = " ".join(
+        str(record.get(key, ""))
+        for key in ("router_error", "skip_reason", "reason")
+    )
+    return record.get("route") == "skip" and "vlm_empty_or_invalid_json" in failure_text
+
+
+def can_reuse_record(record: dict | None) -> bool:
+    if not record or not is_current_policy(record):
+        return False
+    return not (RETRY_ROUTER_FAILED and is_router_failed(record))
+
+
+def upsert_decision_record(records: list[dict], record: dict) -> None:
+    source_path = record.get("source_path")
+    if not source_path:
+        records.append(record)
+        return
+    source_key = str(Path(source_path))
+    for index, existing in enumerate(records):
+        if existing.get("source_path") and str(Path(existing["source_path"])) == source_key:
+            records[index] = record
+            return
+    records.append(record)
 
 
 def select_images() -> list[Path]:
@@ -301,7 +488,7 @@ def select_images() -> list[Path]:
 def prepare_dirs() -> None:
     for city in CITY_NAMES:
         root = city_output_root(city)
-        for route_dir in ["dual", "local", "global", "skip", "rounds", "failed_generation"]:
+        for route_dir in ["dual", "local", "global", "skip", "router_failed", "rounds", "failed_generation"]:
             (root / route_dir).mkdir(parents=True, exist_ok=True)
 
 
@@ -350,8 +537,12 @@ def run_generation() -> None:
         )
         reflect_records_by_city[city] = load_records(reflect_json) if RESUME else []
 
-    all_decision_records = [record for records in decision_records_by_city.values() for record in records]
-    all_reflect_records = [record for records in reflect_records_by_city.values() for record in records]
+    single_decision_records = load_single_records("decisions") if RESUME else []
+    single_reflect_records = load_single_records("reflects") if RESUME else []
+    legacy_decision_records = [record for records in decision_records_by_city.values() for record in records]
+    legacy_reflect_records = [record for records in reflect_records_by_city.values() for record in records]
+    all_decision_records = merge_records(legacy_decision_records, single_decision_records)
+    all_reflect_records = merge_records(legacy_reflect_records, single_reflect_records)
     stale_decisions = sum(1 for record in all_decision_records if record.get("source_path") and not is_current_policy(record))
     stale_reflects = sum(1 for record in all_reflect_records if record.get("source_path") and not is_current_policy(record))
     if stale_decisions or stale_reflects:
@@ -362,24 +553,27 @@ def run_generation() -> None:
     decision_by_source = {
         str(Path(record["source_path"])): record
         for record in all_decision_records
-        if record.get("source_path") and is_current_policy(record)
+        if record.get("source_path") and is_current_policy(record) and not is_router_failed(record)
     }
     completed = {
         str(Path(record["source_path"]))
         for record in all_reflect_records
-        if record.get("source_path") and is_current_policy(record)
+        if record.get("source_path")
+        and is_current_policy(record)
+        and (not is_router_failed(record) or not RETRY_ROUTER_FAILED)
     }
 
     pending = [image_path for image_path in selected if str(image_path) not in completed]
     print(
-        f"[batch] selected={len(selected)} completed={len(completed)} pending={len(pending)} "
-        f"output={OUTPUT_ROOT}",
+        f"[batch] mode={MODE} selected={len(selected)} completed={len(completed)} "
+        f"pending={len(pending)} decisions={len(decision_by_source)} output={OUTPUT_ROOT}",
         flush=True,
     )
     if not pending:
         return
 
-    agent = SceneAugmentAgent(mock=MOCK, experience_path=EXPERIENCE_INPUT_JSON)
+    planning_only = MODE == "plan"
+    agent = SceneAugmentAgent(mock=MOCK, planning_only=planning_only, experience_path=EXPERIENCE_INPUT_JSON)
     for record in decision_by_source.values():
         route = record.get("route")
         if route in agent.route_counts:
@@ -392,41 +586,165 @@ def run_generation() -> None:
         occlusion = record.get("occlusion")
         if route in {"local", "dual"} and occlusion in agent.occlusion_counts:
             agent.occlusion_counts[occlusion] += 1
-    for idx, image_path in enumerate(selected, 1):
-        source_key = str(image_path)
-        if source_key in completed:
-            print(f"[{idx}/{len(selected)}] skip completed: {image_path.name}", flush=True)
+    for record in all_reflect_records:
+        if not (record.get("source_path") and is_current_policy(record) and not is_router_failed(record)):
             continue
+        route = record.get("route")
+        weather = record.get("weather")
+        if (
+            route == "global"
+            and record.get("passed")
+            and hasattr(agent, "global_weather_pass_counts")
+            and weather in agent.global_weather_pass_counts
+        ):
+            agent.global_weather_pass_counts[weather] += 1
 
-        print(f"[{idx}/{len(selected)}] run: {image_path.name}", flush=True)
-        decision = decision_by_source.get(source_key)
-        city = image_path.parent.name
-        decision_json = decision_json_for_city(city)
-        reflect_json = reflect_json_for_city(city)
-        city_root = city_output_root(city)
-        if decision is None:
-            decision = agent.plan_image(image_path)
-            decision["prompt_policy_version"] = PROMPT_POLICY_VERSION
-            decision_records_by_city.setdefault(city, []).append(to_decision_record(decision))
-            decision_by_source[source_key] = decision
-            write_records(decision_json, decision_records_by_city[city])
-        else:
-            print(f"[resume] reuse decision: {image_path.name}", flush=True)
+    processed_since_aggregate = 0
+    idle_rounds = 0
+    router_failed_streak = 0
+    while True:
+        did_work = False
+        missing_decisions = 0
+        for idx, image_path in enumerate(selected, 1):
+            source_key = source_key_for_path(image_path)
+            city = image_path.parent.name
+            city_root = city_output_root(city)
 
-        try:
-            record = agent.run_path(image_path, output_root=city_root, entry=decision)
-        except Exception as exc:
-            print(
-                f"[generation_failed] file={image_path.name} route={decision.get('route')} "
-                f"weather={decision.get('weather')} occlusion={decision.get('occlusion')} "
-                f"error={type(exc).__name__}: {exc}",
-                flush=True,
-            )
-            record = generation_failure_record(image_path, city_root, decision, exc)
-        record["prompt_policy_version"] = PROMPT_POLICY_VERSION
-        reflect_records_by_city.setdefault(city, []).append(record)
-        completed.add(source_key)
-        write_records(reflect_json, reflect_records_by_city[city])
+            if source_key in completed:
+                continue
+
+            single_reflect = load_record_file(record_path("reflects", image_path))
+            if (
+                single_reflect
+                and single_reflect.get("source_path")
+                and is_current_policy(single_reflect)
+                and (not is_router_failed(single_reflect) or not RETRY_ROUTER_FAILED)
+            ):
+                completed.add(source_key)
+                continue
+
+            decision = decision_by_source.get(source_key)
+            if decision is None:
+                single_decision = load_record_file(record_path("decisions", image_path))
+                if can_reuse_record(single_decision):
+                    decision = single_decision
+                    decision_by_source[source_key] = decision
+
+            if MODE == "generate" and decision is None:
+                missing_decisions += 1
+                continue
+
+            if decision is None:
+                claim = try_claim("plan", image_path)
+                if claim is None:
+                    continue
+                try:
+                    existing_decision = load_record_file(record_path("decisions", image_path))
+                    if can_reuse_record(existing_decision):
+                        continue
+                    if (
+                        existing_decision
+                        and is_current_policy(existing_decision)
+                        and is_router_failed(existing_decision)
+                        and RETRY_ROUTER_FAILED
+                    ):
+                        print(f"[retry] replan router_failed: {image_path.name}", flush=True)
+                    print(f"[{idx}/{len(selected)}] plan: {image_path.name}", flush=True)
+                    decision = agent.plan_image(image_path)
+                    decision["prompt_policy_version"] = PROMPT_POLICY_VERSION
+                    decision = to_decision_record(decision)
+                    atomic_write_json(record_path("decisions", image_path), decision)
+                    upsert_decision_record(decision_records_by_city.setdefault(city, []), decision)
+                    if is_router_failed(decision):
+                        router_failed_streak += 1
+                        if (
+                            MAX_ROUTER_FAILED_STREAK > 0
+                            and router_failed_streak >= MAX_ROUTER_FAILED_STREAK
+                        ):
+                            raise RuntimeError(
+                                "Too many consecutive router_failed decisions "
+                                f"({router_failed_streak}); stop planner to avoid mass failure records."
+                            )
+                    else:
+                        router_failed_streak = 0
+                        decision_by_source[source_key] = decision
+                    did_work = True
+                    processed_since_aggregate += 1
+                finally:
+                    release_claim(claim)
+            else:
+                print(f"[resume] reuse decision: {image_path.name}", flush=True)
+
+            if MODE == "plan":
+                if is_router_failed(decision) and not RETRY_ROUTER_FAILED:
+                    completed.add(source_key)
+                continue
+
+            if is_router_failed(decision):
+                record = dict(decision)
+                record["prompt_policy_version"] = PROMPT_POLICY_VERSION
+                atomic_write_json(record_path("reflects", image_path), record)
+                if not RETRY_ROUTER_FAILED:
+                    completed.add(source_key)
+                continue
+
+            claim = try_claim("generate", image_path)
+            if claim is None:
+                continue
+            try:
+                existing_reflect = load_record_file(record_path("reflects", image_path))
+                if can_reuse_record(existing_reflect):
+                    completed.add(source_key)
+                    continue
+                if (
+                    existing_reflect
+                    and is_current_policy(existing_reflect)
+                    and is_router_failed(existing_reflect)
+                    and RETRY_ROUTER_FAILED
+                ):
+                    print(f"[retry] regenerate router_failed reflect: {image_path.name}", flush=True)
+                print(f"[{idx}/{len(selected)}] generate: {image_path.name}", flush=True)
+                try:
+                    record = agent.run_path(image_path, output_root=city_root, entry=decision)
+                except Exception as exc:
+                    print(
+                        f"[generation_failed] file={image_path.name} route={decision.get('route')} "
+                        f"weather={decision.get('weather')} occlusion={decision.get('occlusion')} "
+                        f"error={type(exc).__name__}: {exc}",
+                        flush=True,
+                    )
+                    record = generation_failure_record(image_path, city_root, decision, exc)
+                record["prompt_policy_version"] = PROMPT_POLICY_VERSION
+                atomic_write_json(record_path("reflects", image_path), record)
+                reflect_records_by_city.setdefault(city, []).append(record)
+                completed.add(source_key)
+                did_work = True
+                processed_since_aggregate += 1
+            finally:
+                release_claim(claim)
+
+            if AGGREGATE_EVERY > 0 and processed_since_aggregate >= AGGREGATE_EVERY:
+                aggregate_records()
+                processed_since_aggregate = 0
+
+        if MODE != "generate":
+            break
+        if len(completed) >= len(selected):
+            break
+        if did_work:
+            idle_rounds = 0
+            continue
+        idle_rounds += 1
+        print(
+            f"[generate] no ready decisions; missing={missing_decisions} idle_round={idle_rounds}/{GENERATE_IDLE_LIMIT}",
+            flush=True,
+        )
+        if GENERATE_IDLE_LIMIT > 0 and idle_rounds >= GENERATE_IDLE_LIMIT:
+            break
+        time.sleep(GENERATE_IDLE_SLEEP)
+
+    if processed_since_aggregate:
+        aggregate_records()
 
 def print_summary(records: list[dict]) -> None:
     current_records = [record for record in records if is_current_policy(record)]
@@ -460,7 +778,7 @@ def print_summary(records: list[dict]) -> None:
     person = occlusion_counts.get("person", 0)
 
     print("[summary] route counts:", flush=True)
-    for route in ["skip", "global", "local", "dual"]:
+    for route in ["router_failed", "skip", "global", "local", "dual"]:
         print(f"  {route}: {route_counts.get(route, 0)}", flush=True)
     print(f"[summary] lightx2v count = local + dual: {lightx2v_count}", flush=True)
     print(f"[summary] weather counts for global + dual: {dict(weather_counts)}", flush=True)
@@ -490,7 +808,10 @@ def write_experience_bank() -> None:
         reflect_json = reflect_json_for_city(city)
         if not reflect_json.exists():
             continue
-        records = json.loads(reflect_json.read_text(encoding="utf-8"))
+        records = [
+            record for record in json.loads(reflect_json.read_text(encoding="utf-8"))
+            if not is_router_failed(record)
+        ]
         bank = mine(records)
         output_json = experience_output_json_for_city(city)
         output_json.parent.mkdir(parents=True, exist_ok=True)
@@ -500,20 +821,31 @@ def write_experience_bank() -> None:
 
 def main() -> None:
     print(f"[config] sample_num={SAMPLE_NUM} seed={SEED}", flush=True)
+    print(f"[config] mode={MODE}", flush=True)
     print(f"[config] image_root={IMAGE_ROOT}", flush=True)
     print(f"[config] cities={CITY_NAMES}", flush=True)
     print(f"[config] output_root={OUTPUT_ROOT}", flush=True)
+    print(f"[config] record_root={RECORD_ROOT}", flush=True)
     print("[config] per-city outputs: decision.json reflect.json experience_bank.json under output_root/<city>/", flush=True)
     print(f"[config] experience_input_json={EXPERIENCE_INPUT_JSON}", flush=True)
     print(f"[config] prompt_policy_version={PROMPT_POLICY_VERSION}", flush=True)
     if CLEAR_OUTPUT:
         clear_output_root()
-    start_services()
+    if MODE == "aggregate":
+        aggregate_records()
+        print(f"Done. output={OUTPUT_ROOT}", flush=True)
+        return
+    if MODE in {"both", "generate"}:
+        start_services()
+    else:
+        print("[services] planning mode, skip generation service startup", flush=True)
     run_generation()
+    aggregate_records()
     all_reflect_records = load_all_reflect_records()
     if all_reflect_records:
         print_summary(all_reflect_records)
-    write_experience_bank()
+    if MODE in {"both", "generate"}:
+        write_experience_bank()
     print(f"Done. output={OUTPUT_ROOT}", flush=True)
 
 

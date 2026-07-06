@@ -37,14 +37,43 @@ from schemas import AgentResult
 
 
 MAX_ROUNDS = int(os.getenv("REFLECTVPR_MAX_ROUNDS", "3"))
-VLM_ROUTER_RETRIES = int(os.getenv("REFLECTVPR_VLM_ROUTER_RETRIES", "2"))
-VLM_MODEL = os.getenv("OPENAI_VLM_MODEL", "qwen3.5-35b-a3b")
-TARGET_ROUTE_RATIOS = {
-    "skip": 0.25,
-    "global": 0.25,
-    "local": 0.25,
-    "dual": 0.25,
-}
+VLM_ROUTER_RETRIES = int(os.getenv("REFLECTVPR_VLM_ROUTER_RETRIES", "0"))
+VLM_MODEL = os.getenv(
+    "REFLECTVPR_PLANNER_MODEL",
+    "qwen3-vl-4b-instruct-remote",
+)
+def _route_ratios_from_env() -> dict[str, float]:
+    ratios = {
+        "skip": 0.25,
+        "global": 0.25,
+        "local": 0.25,
+        "dual": 0.25,
+    }
+    raw = os.getenv("REFLECTVPR_TARGET_ROUTE_RATIOS", "").strip()
+    if not raw:
+        return ratios
+    parsed: dict[str, float] = {}
+    for item in raw.split(","):
+        if ":" not in item:
+            continue
+        key, value = item.split(":", 1)
+        key = key.strip().lower()
+        if key not in ratios:
+            continue
+        try:
+            parsed[key] = max(0.0, float(value))
+        except ValueError:
+            continue
+    if not parsed:
+        return ratios
+    ratios.update(parsed)
+    total = sum(ratios.values())
+    if total <= 0:
+        return ratios
+    return {key: value / total for key, value in ratios.items()}
+
+
+TARGET_ROUTE_RATIOS = _route_ratios_from_env()
 TARGET_LIGHTX2V_RATIO = TARGET_ROUTE_RATIOS["dual"] + TARGET_ROUTE_RATIOS["local"]
 WEATHER_THRESHOLD = float(os.getenv("REFLECTVPR_WEATHER_THRESHOLD", "0.50"))
 OCCLUSION_THRESHOLD = float(os.getenv("REFLECTVPR_OCCLUSION_THRESHOLD", "0.50"))
@@ -54,18 +83,21 @@ MIN_RATIO = float(os.getenv("REFLECTVPR_MIN_ROUTE_RATIO", "0.20"))
 MAX_RATIO = float(os.getenv("REFLECTVPR_MAX_ROUTE_RATIO", "0.30"))
 MIN_RATIO_DEFICIT_MULTIPLIER = float(os.getenv("REFLECTVPR_MIN_ROUTE_DEFICIT_MULTIPLIER", "2.0"))
 GLOBAL_WEATHER_TARGET_RATIOS = {
-    "overcast": 0.30,
-    "fog": 0.30,
+    "overcast": 0.20,
+    "fog": 0.20,
     "rain": 0.20,
-    "snow": 0.10,
-    "night": 0.10,
+    "snow": 0.20,
+    "night": 0.20,
 }
 GLOBAL_WEATHER_ORDER = ("overcast", "fog", "rain", "snow", "night")
 GLOBAL_SAFE_WEATHERS = ("overcast", "fog")
 GLOBAL_MAX_SINGLE_WEATHER_RATIO = float(os.getenv("REFLECTVPR_GLOBAL_MAX_WEATHER_RATIO", "0.50"))
 OCCLUSION_STRENGTH_DEBUG = os.getenv("REFLECTVPR_OCCLUSION_STRENGTH_DEBUG", "")
 DEBUG_ROUTE = os.getenv("REFLECTVPR_DEBUG_ROUTE", "dual").strip().lower()
+FORCE_ROUTE = os.getenv("REFLECTVPR_FORCE_ROUTE", "").strip().lower()
+FORCE_OCCLUSION = os.getenv("REFLECTVPR_FORCE_OCCLUSION", "").strip().lower()
 GLOBAL_ICLIGHT_HIGHRES_DENOISE = float(os.getenv("REFLECTVPR_GLOBAL_ICLIGHT_DENOISE", "0.30"))
+GLOBAL_RAIN_ICLIGHT_HIGHRES_DENOISE = float(os.getenv("REFLECTVPR_GLOBAL_RAIN_ICLIGHT_DENOISE", "0.22"))
 
 
 SYSTEM_PROMPT = """You are a strict VPR image augmentation capability scorer.
@@ -126,6 +158,19 @@ def extract_json(text: str) -> dict:
         return json.loads(match.group(0))
 
 
+def is_systemic_api_error(exc: Exception) -> bool:
+    text = f"{type(exc).__name__}: {exc}".lower()
+    systemic_markers = (
+        "quota is not enough",
+        "insufficient_quota",
+        "arrearage",
+        "overdue-payment",
+        "access denied",
+        "account is in good standing",
+    )
+    return any(marker in text for marker in systemic_markers)
+
+
 class SceneAugmentAgent:
 
     def __init__(
@@ -146,6 +191,7 @@ class SceneAugmentAgent:
         self.route_counts = {"skip": 0, "global": 0, "local": 0, "dual": 0}
         self.weather_counts = {weather: 0 for weather in sorted(WEATHERS)}
         self.global_weather_counts = {weather: 0 for weather in GLOBAL_WEATHER_ORDER}
+        self.global_weather_pass_counts = {weather: 0 for weather in GLOBAL_WEATHER_ORDER}
         self.occlusion_counts = {"vehicle": 0, "person": 0}
         self.experience_bank = load_experience_bank(experience_path)
         self.negative_prompt = negative_prompt_from_experience(self.experience_bank)
@@ -164,7 +210,10 @@ class SceneAugmentAgent:
         image_path = Path(image_path)
         city = image_path.parent.name
         if entry:
-            decision = normalize_decision(entry, image_path=image_path)
+            if entry.get("router_failed") or entry.get("route") == "router_failed":
+                decision = dict(entry)
+            else:
+                decision = normalize_decision(entry, image_path=image_path)
         else:
             user_prompt = f"""Analyze this VPR street-view image and score augmentation capabilities.
 Return this JSON schema:
@@ -195,15 +244,15 @@ Return this JSON schema:
             raw_decision = None
             last_error = None
             for attempt in range(1, VLM_ROUTER_RETRIES + 2):
-                response = self.llm_client.chat_with_images(
-                    system=SYSTEM_PROMPT,
-                    user=user_prompt,
-                    images=[image_to_b64(image_path)],
-                    json_mode=True,
-                    temperature=0.2,
-                    model=VLM_MODEL,
-                )
                 try:
+                    response = self.llm_client.chat_with_images(
+                        system=SYSTEM_PROMPT,
+                        user=user_prompt,
+                        images=[image_to_b64(image_path)],
+                        json_mode=True,
+                        temperature=0.2,
+                        model=VLM_MODEL,
+                    )
                     raw_decision = extract_json(response)
                     break
                 except json.JSONDecodeError as exc:
@@ -214,9 +263,23 @@ Return this JSON schema:
                         f"file={image_path.name} error={exc} response_preview={preview!r}",
                         flush=True,
                     )
+                except Exception as exc:
+                    last_error = exc
+                    if is_systemic_api_error(exc):
+                        print(
+                            f"[Agent] systemic VLM/API error; stop planner to avoid mass router_failed "
+                            f"file={image_path.name} error={type(exc).__name__}: {exc}",
+                            flush=True,
+                        )
+                        raise
+                    print(
+                        f"[Agent] VLM route request failed attempt={attempt}/{VLM_ROUTER_RETRIES + 1} "
+                        f"file={image_path.name} error={type(exc).__name__}: {exc}",
+                        flush=True,
+                    )
 
             if raw_decision is None:
-                decision = self._fallback_skip_decision(image_path, last_error)
+                decision = self._router_failed_decision(image_path, last_error)
             else:
                 scheduled = self._schedule_route_from_capabilities(raw_decision)
                 decision = normalize_decision(scheduled, image_path=image_path)
@@ -232,8 +295,12 @@ Return this JSON schema:
 
         decision["city"] = city
         decision["source_path"] = str(image_path)
+        if decision.get("router_failed"):
+            return decision
+
         decision = self._apply_experience_bank(decision)
         decision = self._apply_occlusion_strength_debug(decision)
+        decision = self._apply_original_vehicle_crowding_policy(decision)
         decision = self._apply_bad_image_policy(decision)
         decision = self._apply_scene_aware_global_policy(decision)
 
@@ -255,28 +322,103 @@ Return this JSON schema:
             self._record_decision_counts(decision)
         return decision
 
-    def _fallback_skip_decision(self, image_path: Path, error: Exception | None = None) -> dict:
+    def _detect_original_vehicle_crowding(self, decision: dict) -> tuple[bool, list[str]]:
+        if decision.get("route") != Route.LOCAL.value or decision.get("occlusion") != "vehicle":
+            return False, []
+
+        text = " ".join(
+            str(decision.get(key, "") or "").lower()
+            for key in (
+                "position",
+                "reason",
+                "skip_reason",
+                "street_scene_quality",
+                "road_visibility",
+                "occlusion_feasibility",
+            )
+        )
+        strong_patterns = {
+            "existing traffic",
+            "existing vehicles",
+            "existing vehicle flow",
+            "behind existing traffic",
+            "between existing vehicles",
+            "traffic constrained",
+            "foreground car clutter",
+            "vehicle clutter",
+            "road is cluttered",
+            "traffic jam",
+            "dense vehicle",
+            "dense traffic",
+            "many vehicles",
+            "several vehicles",
+            "multiple vehicles",
+            "parked cars",
+            "bus dominance",
+        }
+        weak_patterns = {
+            "existing car",
+            "curbside parking",
+            "parking lane",
+            "roadside parking",
+        }
+        reasons = [pattern for pattern in strong_patterns if pattern in text]
+        weak_hits = [pattern for pattern in weak_patterns if pattern in text]
+
+        if reasons:
+            return True, sorted(set(reasons))
+        # Avoid enabling removal for a single named car/van; require at least two weak original-vehicle cues.
+        if len(set(weak_hits)) >= 2:
+            return True, sorted(set(weak_hits))
+        return False, sorted(set(weak_hits))
+
+    def _apply_original_vehicle_crowding_policy(self, decision: dict) -> dict:
+        crowded, reasons = self._detect_original_vehicle_crowding(decision)
+        decision["original_vehicle_crowded"] = crowded
+        if reasons:
+            decision["original_vehicle_crowding_reasons"] = reasons
+        if not crowded:
+            return decision
+
+        decision["local_vehicle_policy"] = "remove_vehicle_clutter_from_original_scene"
+        decision["prompt"] = build_structured_prompt(
+            route=decision["route"],
+            weather=decision.get("weather"),
+            occlusion=decision.get("occlusion"),
+            position=decision.get("position", ""),
+            base_prompt=decision.get("reason", ""),
+            experience_bank=self.experience_bank,
+            original_vehicle_crowded=True,
+        )
+        return decision
+
+    def _router_failed_decision(self, image_path: Path, error: Exception | None = None) -> dict:
         reason = "vlm_empty_or_invalid_json"
+        error_type = ""
         if error is not None:
+            error_type = type(error).__name__
             reason = f"{reason}: {error}"
-        raw = {
+        return {
             "file_name": image_path.name,
             "city": image_path.parent.name,
-            "route": Route.SKIP.value,
+            "route": "router_failed",
             "weather": None,
             "occlusion": None,
             "weather_score": 0,
             "occlusion_score": 0,
+            "selected_model": "None",
             "position": "none",
             "prompt": reason,
             "reason": reason,
-            "skip_reason": reason,
+            "skip_reason": "",
             "street_scene_quality": "bad",
             "occlusion_feasibility": "none",
             "weather_feasibility": "none",
+            "router_failed": True,
+            "router_status": "needs_retry",
+            "router_error_type": error_type,
             "router_error": reason,
         }
-        return normalize_decision(raw, image_path=image_path)
 
     def run_path(
         self,
@@ -292,6 +434,27 @@ Return this JSON schema:
 
         route = decision["route"]
         prompt = decision["prompt"]
+
+        if route == "router_failed":
+            stem = image_path.stem
+            failed_dir = output_root / "router_failed"
+            failed_dir.mkdir(parents=True, exist_ok=True)
+            failed_path = failed_dir / f"{stem}__router_failed.json"
+            record = dict(decision)
+            record.update({
+                "output_path": str(failed_path),
+                "final_reflect_path": str(failed_path),
+                "final_prompt": prompt,
+                "reflection_rounds": [],
+                "passed": False,
+                "s_geo": 0.0,
+                "s_div": 0.0,
+                "rounds_used": 0,
+                "router_failed": True,
+                "router_status": "needs_retry",
+            })
+            failed_path.write_text(json.dumps(record, indent=2, ensure_ascii=False), encoding="utf-8")
+            return record
 
         # ── skip 路由：不生成，只存 JSON 记录 ──
         if route in ("skip", "pass"):
@@ -321,7 +484,7 @@ Return this JSON schema:
 
         for round_num in range(1, MAX_ROUNDS + 1):
             print(f"[Agent] {image_path.name} round={round_num}/{MAX_ROUNDS} route={route}", flush=True)
-            gen_image = self._generate(ref, prompt, route)
+            gen_image = self._generate(ref, prompt, route, decision=decision)
             out_path = self._output_path(output_root, image_path, decision, round_num)
             out_path.parent.mkdir(parents=True, exist_ok=True)
             if gen_image.size != ref.size:
@@ -371,6 +534,11 @@ Return this JSON schema:
         if final_image.size != ref.size:
             final_image = final_image.resize(ref.size, Image.Resampling.LANCZOS)
         final_image.save(final_save_path, quality=95)
+
+        if route == Route.GLOBAL.value and final_eval.passed:
+            weather = decision.get("weather")
+            if weather in self.global_weather_pass_counts:
+                self.global_weather_pass_counts[weather] += 1
 
         record = dict(decision)
         record.update({
@@ -427,7 +595,7 @@ Return this JSON schema:
             print(f"\n[Agent] ----- Round {round_num}/{MAX_ROUNDS} -----")
             print(f"[Agent] Prompt: {prompt[:80]}...")
 
-            gen_image = self._generate(input_image, prompt, route)
+            gen_image = self._generate(input_image, prompt, route, decision=decision)
 
             if save_dir:
                 os.makedirs(save_dir, exist_ok=True)
@@ -481,14 +649,20 @@ Return this JSON schema:
 
         return result
 
-    def _generate(self, ref_image: Image.Image, prompt: str, route: str) -> Image.Image:
+    def _generate(self, ref_image: Image.Image, prompt: str, route: str, decision: dict | None = None) -> Image.Image:
         if route == Route.GLOBAL.value:
             prompt = ensure_global_iclight_constraints(prompt)
+            weather = (decision or {}).get("weather")
+            highres_denoise = (
+                GLOBAL_RAIN_ICLIGHT_HIGHRES_DENOISE
+                if weather == "rain"
+                else GLOBAL_ICLIGHT_HIGHRES_DENOISE
+            )
             return self.iclight.generate(
                 ref_image,
                 prompt,
                 negative_prompt=global_negative_prompt(),
-                highres_denoise=GLOBAL_ICLIGHT_HIGHRES_DENOISE,
+                highres_denoise=highres_denoise,
             )
         elif route == Route.LOCAL.value:
             return self.lightx2v.generate_local(ref_image, prompt, negative_prompt=self.negative_prompt)
@@ -624,6 +798,12 @@ Return this JSON schema:
         if bad_image or not eligible:
             eligible.append(Route.SKIP.value)
 
+        if FORCE_ROUTE in {Route.GLOBAL.value, Route.LOCAL.value, Route.DUAL.value}:
+            if FORCE_ROUTE in eligible:
+                eligible = [FORCE_ROUTE]
+            else:
+                eligible = [Route.SKIP.value]
+
         planned = sum(self.route_counts.values()) + 1
         deficits = self._route_deficits()
         filtered = [
@@ -669,6 +849,13 @@ Return this JSON schema:
         elif route == Route.DUAL.value:
             scheduled["weather"] = self._choose_weather(scheduled.get("weather"))
             scheduled["occlusion"] = self._choose_occlusion(scheduled)
+
+        if (
+            FORCE_OCCLUSION in {"vehicle", "person"}
+            and route in {Route.LOCAL.value, Route.DUAL.value}
+            and scheduled.get("occlusion")
+        ):
+            scheduled["occlusion"] = FORCE_OCCLUSION
 
         scheduled["prompt"] = build_structured_prompt(
             route=route,
@@ -719,6 +906,8 @@ Return this JSON schema:
             )
             if chosen:
                 decision["occlusion"] = chosen
+            if FORCE_OCCLUSION in {"vehicle", "person"} and decision.get("occlusion"):
+                decision["occlusion"] = FORCE_OCCLUSION
 
         if route == Route.DUAL.value:
             decision["weather"] = choose_weather_from_experience(
@@ -740,6 +929,7 @@ Return this JSON schema:
             position=decision.get("position", ""),
             base_prompt=decision.get("reason", ""),
             experience_bank=self.experience_bank,
+            original_vehicle_crowded=bool(decision.get("original_vehicle_crowded")),
         )
         decision["experience_bank_version"] = self.experience_bank.get("version")
         return decision
@@ -853,25 +1043,32 @@ Return this JSON schema:
             )
             return decision
 
-        scene_restricted = scene_high_risk or scene_medium_risk
+        scene_restricted = scene_high_risk
         pool = list(GLOBAL_SAFE_WEATHERS if scene_restricted else GLOBAL_WEATHER_ORDER)
         if safe_weathers:
             filtered = [weather for weather in pool if weather in safe_weathers]
             if filtered:
                 pool = filtered
 
-        before = {weather: int(self.global_weather_counts.get(weather, 0)) for weather in GLOBAL_WEATHER_ORDER}
+        generated_before = {weather: int(self.global_weather_counts.get(weather, 0)) for weather in GLOBAL_WEATHER_ORDER}
+        before = {
+            weather: int(self.global_weather_pass_counts.get(weather, 0))
+            for weather in GLOBAL_WEATHER_ORDER
+        }
         planned = sum(before.values()) + 1
+        generated_planned = sum(generated_before.values()) + 1
         capped_pool = [
             weather
             for weather in pool
-            if planned <= 1 or self.global_weather_counts.get(weather, 0) / max(planned - 1, 1) <= GLOBAL_MAX_SINGLE_WEATHER_RATIO
+            if generated_planned <= 1
+            or self.global_weather_counts.get(weather, 0) / max(generated_planned - 1, 1)
+            <= GLOBAL_MAX_SINGLE_WEATHER_RATIO
         ]
         if capped_pool:
             pool = capped_pool
 
         deficits = {
-            weather: GLOBAL_WEATHER_TARGET_RATIOS[weather] * planned - self.global_weather_counts.get(weather, 0)
+            weather: GLOBAL_WEATHER_TARGET_RATIOS[weather] * planned - self.global_weather_pass_counts.get(weather, 0)
             for weather in pool
         }
         max_deficit = max(deficits.values())
@@ -890,11 +1087,18 @@ Return this JSON schema:
         )
         decision["scene_policy_restricted_weather"] = scene_restricted
         decision["scene_policy_restriction_reasons"] = restriction_reasons
-        decision["global_weather_counts_before"] = before
-        decision["global_weather_counts_after"] = after
+        decision["global_weather_pass_counts_before"] = before
+        decision["global_weather_pass_counts_projected_after"] = after
+        decision["global_weather_counts_before"] = generated_before
         decision["global_weather_target_ratios"] = GLOBAL_WEATHER_TARGET_RATIOS
         decision["global_weather_candidate_pool"] = pool
         decision["global_weather_deficits"] = {key: round(value, 4) for key, value in deficits.items()}
+        decision["global_weather_quota_basis"] = "passed_global_weather_counts"
+        decision["global_iclight_highres_denoise"] = (
+            GLOBAL_RAIN_ICLIGHT_HIGHRES_DENOISE
+            if selected_weather == "rain"
+            else GLOBAL_ICLIGHT_HIGHRES_DENOISE
+        )
         decision["global_scene_policy"] = {
             "action": "restrict_weather" if scene_restricted else "quota_select_weather",
             "risk": "high" if scene_high_risk else "medium" if scene_medium_risk else "low",
@@ -922,7 +1126,8 @@ Return this JSON schema:
         )
         print(
             f"[Agent] global weather quota: {original_weather} -> {selected_weather} "
-            f"reason={decision['weather_selection_reason']} counts={before}->{after} "
+            f"reason={decision['weather_selection_reason']} pass_counts={before}->{after} "
+            f"generated_counts={generated_before} "
             f"file={decision.get('file_name')}",
             flush=True,
         )

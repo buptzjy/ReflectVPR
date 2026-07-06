@@ -1,6 +1,13 @@
+import os
+
+
 class PromptRefiner:
     def __init__(self, llm_client):
         self.client = llm_client
+        self.model = os.getenv(
+            "REFLECTVPR_PLANNER_MODEL",
+            "qwen3-vl-4b-instruct-remote",
+        )
 
     def refine(self, old_prompt: str, feedback: dict, round_num: int) -> str:
         geo_issue = feedback.get("geo_issue", "")
@@ -49,7 +56,7 @@ class PromptRefiner:
             system="你是一个图像生成prompt优化专家。",
             user=refine_request,
             temperature=0.6 + round_num * 0.1,
-            model="qwen-max",
+            model=self.model,
         )
 
         print(f"[Refiner] Round {round_num} 新Prompt: {new_prompt}")

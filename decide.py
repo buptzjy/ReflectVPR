@@ -12,7 +12,7 @@ load_dotenv(Path(__file__).parent / "your_agent" / ".env")
 
 API_KEY = os.getenv("OPENAI_API_KEY", "")
 BASE_URL = os.getenv("OPENAI_API_BASE", "https://api.yunwu.ai/v1")
-MODEL_NAME = os.getenv("OPENAI_MODEL_NAME", "qwen3.5-35b-a3b")
+MODEL_NAME = os.getenv("OPENAI_MODEL_NAME", "qwen3-vl-flash")
 
 IMAGE_BASE_DIR = "/media/data1/chenshunpeng1/datasets/gsv_cities/Images"
 OUTPUT_DIR = "/media/data/zhangjingyi/ReflectVPR/"

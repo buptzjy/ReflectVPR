@@ -34,11 +34,31 @@ def _service_ready(session: requests.Session, api_url: str) -> bool:
         if resp.status_code != 200:
             return False
         data = resp.json()
-        return data.get("status") == "ok" and data.get("model_loaded") is True
+        model_loaded = data.get("model_loaded") is True
+        generator_ready = data.get("generator_ready")
+        if generator_ready is None:
+            generator_ready = model_loaded
+        return data.get("status") == "ok" and model_loaded and generator_ready is True
     except requests.RequestException:
         return False
     except ValueError:
         return False
+
+
+def _wait_service_ready(session: requests.Session, api_url: str) -> None:
+    """Wait for LightX2V to finish loading instead of failing early."""
+    if not api_url:
+        return
+    timeout = float(os.getenv("LIGHTX2V_READY_TIMEOUT", "0"))
+    sleep_s = float(os.getenv("LIGHTX2V_READY_SLEEP", "5"))
+    start = time.time()
+    while True:
+        if _service_ready(session, api_url):
+            return
+        if timeout > 0 and time.time() - start >= timeout:
+            raise RuntimeError(f"[Lightx2v] service not ready after {timeout:.0f}s: {_health_url(api_url)}")
+        print("[Lightx2v] waiting for model/generator to be ready...", flush=True)
+        time.sleep(sleep_s)
 
 
 def _start_local_service(session: requests.Session, api_url: str) -> None:
@@ -114,11 +134,13 @@ class Lightx2vGenerator:
                 "infer_steps": kwargs.get("infer_steps", 4),
                 "guidance_scale": kwargs.get("guidance_scale", 1.0),
             }
+            _wait_service_ready(self._session, self.api_url)
             last_error = None
             max_attempts = int(os.getenv("LIGHTX2V_API_RETRIES", "2"))
+            request_timeout = float(os.getenv("LIGHTX2V_API_TIMEOUT", "300"))
             for attempt in range(1, max_attempts + 1):
                 try:
-                    resp = self._session.post(self.api_url, json=payload, timeout=300)
+                    resp = self._session.post(self.api_url, json=payload, timeout=request_timeout)
                     resp.raise_for_status()
                     break
                 except requests.RequestException as exc:

@@ -9,8 +9,9 @@ from dataclasses import dataclass
 
 WEATHERS = {"rain", "snow", "night", "overcast", "fog", "rainy_night"}
 OCCLUSIONS = {"person", "vehicle"}
-PROMPT_POLICY_VERSION = "20260605_global_weather_quota_scene_v2"
 OCCLUSION_STRENGTH_DEBUG = os.getenv("REFLECTVPR_OCCLUSION_STRENGTH_DEBUG", "")
+DUAL_PROMPT_STRATEGY = os.getenv("REFLECTVPR_DUAL_PROMPT_STRATEGY", "default").strip().lower()
+PROMPT_POLICY_VERSION = f"20260703_dual_strategy_{DUAL_PROMPT_STRATEGY or 'default'}"
 
 VEHICLE_SURFACE_TERMS = (
     "traffic lane", "road lane", "visible lane", "curbside lane", "curb lane",
@@ -40,16 +41,75 @@ LIGHTX2V_LOCAL_VEHICLE_CONSTRAINT = (
     "partially blocking the nearest visible lane, clearly visible vehicle body, clearly visible wheels, "
     "noticeable but realistic local occlusion"
 )
-LIGHTX2V_DUAL_VEHICLE_CONSTRAINT = (
-    "exactly one visible vehicle, occupying approximately 4-8% image area, "
-    "partially blocking a visible lane, clearly visible vehicle body, clearly visible wheels, "
-    "noticeable but realistic occlusion"
-)
+if DUAL_PROMPT_STRATEGY == "dual_hard_v5":
+    LIGHTX2V_DUAL_VEHICLE_CONSTRAINT = (
+        "one realistic box truck, delivery van, shuttle bus, city bus, or tall service vehicle with visible wheels, "
+        "realistic side panels, perspective-aligned tires, and contact shadows. The dominant vehicle should occupy "
+        "approximately 20-28% image area, placed in the lower-middle or near-midground on an existing legal traffic "
+        "lane, curbside lane, parking bay, roadside parking area, or intersection approach. It must only use existing "
+        "road, curb, lane, crosswalk, parking-strip, sidewalk-road, or parked-vehicle boundary cues already visible in "
+        "the original image. Do not invent storefronts, facade edges, windows, walls, buildings, skylines, or new "
+        "architectural structures to justify the occlusion. Preserve all existing background structures exactly"
+    )
+elif DUAL_PROMPT_STRATEGY == "dual_hard_v4":
+    LIGHTX2V_DUAL_VEHICLE_CONSTRAINT = (
+        "one large realistic box truck, delivery van, city bus, shuttle bus, or tall service vehicle, preferably white "
+        "or light-colored with visible wheels and realistic side panels, plus optional small natural street clutter such "
+        "as cones, bollards, a scooter, a partial car hood, or a small roadwork barrier. The dominant vehicle should "
+        "occupy approximately 24-32% image area, placed in the lower-middle or near-midground on a legal traffic lane, "
+        "curbside lane, parking bay, or intersection approach. It must cut across a continuous lower-scene recognition "
+        "band: lane markings, crosswalk bars, curb line, parking-lane boundary, sidewalk-road transition, storefront "
+        "lower edge, or sign-adjacent lower facade margin. Prefer scenes where the truck or bus blocks part of an "
+        "intersection, parking strip, or long curb/lane line, while preserving landmark facades, building silhouettes, "
+        "road geometry, perspective, main sign identity, and place-defining structures"
+    )
+elif DUAL_PROMPT_STRATEGY == "dual_hard_v3":
+    LIGHTX2V_DUAL_VEHICLE_CONSTRAINT = (
+        "one dominant realistic mid-ground street vehicle such as a delivery van, bus, truck, taxi, or parked-car "
+        "cluster plus one smaller natural foreground-side cue such as a partial car hood, scooter, umbrella pedestrian, "
+        "bollards, sign pole, or roadwork barrier only if it fits the visible geometry. The combined new occluder area "
+        "should occupy approximately 22-30% image area, with the dominant vehicle occupying 16-22% and the secondary "
+        "cue occupying 5-8%. Place the dominant vehicle on a legal lane, curbside lane, parking bay, or roadside parking "
+        "area so it crosses the lower facade, curb, lane, parking-strip, crosswalk, storefront-lower-margin, or "
+        "sidewalk-road boundary region. The occlusion must interrupt continuous VPR place cues rather than only empty "
+        "road surface, while preserving landmark facades, building silhouettes, road geometry, camera viewpoint, main "
+        "sign identity, and all place-defining structures"
+    )
+elif DUAL_PROMPT_STRATEGY == "dual_hard_v2":
+    LIGHTX2V_DUAL_VEHICLE_CONSTRAINT = (
+        "one dominant realistic foreground-to-midground vehicle plus one subtle secondary street-level occlusion cue "
+        "such as a partial parked vehicle edge, scooter, cyclist, roadwork cone cluster, or curbside pole only if it "
+        "fits the visible road geometry. The combined new occluder area should occupy approximately 18-25% image area, "
+        "with the dominant vehicle on a legal lane, curbside lane, parking bay, or roadside parking area. The occlusion "
+        "must cover a continuous lower-scene place cue band such as lane markings, curb transitions, parking-strip "
+        "boundaries, crosswalk edges, lower road-storefront boundary, or parked-car edges, while preserving landmark "
+        "facades, building silhouettes, road geometry, camera viewpoint, and all place-defining structures"
+    )
+elif DUAL_PROMPT_STRATEGY == "test20_v1":
+    LIGHTX2V_DUAL_VEHICLE_CONSTRAINT = (
+        "exactly one dominant realistic vehicle, occupying approximately 16-22% image area, "
+        "placed in the lower-middle or near-midground of the scene, occluding one continuous and meaningful "
+        "street-level cue region such as a full lane-marking segment, a curbside parking strip, a crosswalk edge, "
+        "or the lower boundary between roadway and storefront or parked-car area, with clearly visible vehicle body, "
+        "clearly visible wheels, readable silhouette, realistic body details, and strong but legal place-level occlusion"
+    )
+else:
+    LIGHTX2V_DUAL_VEHICLE_CONSTRAINT = (
+        "exactly one dominant visible vehicle, occupying approximately 12-16% image area, "
+        "placed in the lower-middle or near-midground of the scene, partially blocking one full visible lane segment "
+        "or one curbside parking segment, with clearly visible vehicle body, clearly visible wheels, "
+        "clearly readable silhouette, and strong but realistic occlusion"
+    )
 LIGHTX2V_VEHICLE_CONSTRAINT = LIGHTX2V_LOCAL_VEHICLE_CONSTRAINT
 LIGHTX2V_VEHICLE_DEBUG_CONSTRAINT = LIGHTX2V_LOCAL_VEHICLE_CONSTRAINT
 LIGHTX2V_PERSON_CONSTRAINT = (
     "exactly one realistic full-body pedestrian, natural scale, normal clothing, feet on the "
     "visible ground plane, matched lighting, realistic shadow"
+)
+LIGHTX2V_LOCAL_MULTI_NEGATIVE_TERMS = (
+    "tiny occluder, weak occlusion, barely visible object, sticker-like object, "
+    "floating object, black silhouette, border-attached object, tiny vehicle, tiny pedestrian, "
+    "invisible cyclist, weak local edit"
 )
 FORBID_CLAUSE = (
     "no new background vehicles, no dense crowds, no traffic jams, no new traffic signs, "
@@ -88,7 +148,8 @@ NEGATIVE_PROMPT = (
     "border occluder, object on wall, object in sky, object on building facade, "
     "close-up person, close-up car, oversized foreground vehicle, large foreground object, blocked main building, over-occlusion, "
     "neon facade, rainbow facade, multicolored building, oversaturated storefront, changed shop sign, "
-    "changed facade color, changed wall material, distorted sign, deformed storefront"
+    "changed facade color, changed wall material, distorted sign, deformed storefront, "
+    "tiny occluder, weak occlusion, barely visible object, invisible cyclist, weak local edit"
 )
 GLOBAL_NEGATIVE_PROMPT = (
     "oil painting, painterly, illustration, watercolor, brush strokes, artistic style, stylized image, "
@@ -116,6 +177,18 @@ reduced ambient brightness,
 
 Natural street-view photo, conservative edit.
 Avoid structural changes, blur or deformation."""
+
+GLOBAL_RAIN_CONSERVATIVE_PROMPT = """Preserve scene geometry, buildings, signs, vehicles, lane markings, road layout, and viewpoint.
+
+Apply conservative light rainy weather only:
+subtle wet pavement, soft overcast sky,
+very light visible rain streaks,
+mild reflections near the road surface.
+
+Keep building facades, storefronts, signs, windows, trees, cars, and road boundaries unchanged.
+Do not add heavy rain, flooding, haze, darkness, strong blur, large reflections, new vehicles, or structural changes.
+
+Natural documentary street-view photo, conservative edit."""
 
 REFLECTION_LESSONS = [
     "Occluders must be real street participants, not abstract masks or edge shadows.",
@@ -178,8 +251,8 @@ EXPERIENCE_RULES = {
         "avoid": "edge shadow person, rain artifacts, night lighting, pasted person",
     },
     "dual_overcast_vehicle": {
-        "target": "soft overcast daylight plus one normal vehicle on a visible road lane, curb lane, or parking lane",
-        "avoid": "pure black vehicle blob, rain artifacts, traffic jam, changed road layout",
+        "target": "heavy low-cloud overcast daylight plus one dominant vehicle that blocks a meaningful lane or curbside segment under flat cool grey lighting",
+        "avoid": "rain artifacts, sunny contrast, decorative tiny car, traffic jam, changed road layout",
     },
     "dual_fog_person": {
         "target": "realistic fog plus one natural pedestrian on visible nearby pavement, with background visibility reduced but local geometry preserved",
@@ -293,12 +366,12 @@ WEATHER_SCENE_PHRASES = {
 
 WEATHER_INSTRUCTION_PHRASES = {
     "rain": (
-        "Apply heavy rainy weather only:\n"
+        "Apply strong rainy weather only:\n"
         "replace the sky with dark overcast rain clouds,\n"
         "add clearly visible rain streaks across the image,\n"
-        "make road surfaces wet and reflective,\n"
-        "add puddles and subtle rain splashes,\n"
-        "slightly reduce visibility and overall brightness."
+        "make the full drivable road surface wet with continuous reflective sheen,\n"
+        "add several realistic puddles and elongated reflections on lanes and curbside asphalt,\n"
+        "reduce visibility and local contrast slightly, darken the scene modestly, and keep all geometry sharp without blur."
     ),
     "snow": (
         "Apply snowy winter weather only:\n"
@@ -309,17 +382,21 @@ WEATHER_INSTRUCTION_PHRASES = {
         "create a cold winter atmosphere with frosty surfaces."
     ),
     "night": (
-        "Apply night time only:\n"
+        "Apply stronger urban night time only:\n"
         "darken the sky to nighttime black,\n"
-        "add dim artificial street lighting on roads,\n"
+        "add clear pools of artificial street lighting on the road surface,\n"
         "make building windows glow with warm indoor lights,\n"
-        "reduce overall saturation, create a nocturnal atmosphere."
+        "darken the roadway and sidewalk while keeping lane geometry readable,\n"
+        "reduce overall saturation and create a distinctly nocturnal atmosphere with stronger foreground-background contrast."
     ),
     "overcast": (
-        "Apply overcast weather only:\n"
-        "replace the sky with dense uniform grey clouds,\n"
-        "change lighting to soft diffuse daylight,\n"
-        "remove harsh shadows, mute overall color saturation."
+        "Apply heavy overcast weather only:\n"
+        "replace the sky with a low dense blanket of thick grey clouds,\n"
+        "flatten the entire scene lighting into strongly diffused cool daylight,\n"
+        "remove nearly all direct-sun contrast and suppress crisp cast shadows,\n"
+        "desaturate the full street scene moderately, cool the white balance slightly, and make distant/background regions look duller and more compressed,\n"
+        "make some asphalt and curbside surfaces look faintly damp and less contrasty without adding rain streaks, puddles, or night lighting,\n"
+        "preserve facade identity and geometry while making the whole scene feel distinctly gloomier and heavier than normal daylight."
     ),
     "fog": (
         "Apply foggy weather only:\n"
@@ -351,7 +428,108 @@ def _deep_merge(base: dict, override: dict) -> dict:
 
 def normalize_experience_bank(bank: dict | None = None) -> dict:
     """Return a complete frozen-v0-compatible bank, preserving learned stats if present."""
-    return _deep_merge(EXPERIENCE_BANK_V0, bank or {})
+    merged = _deep_merge(EXPERIENCE_BANK_V0, bank or {})
+    if DUAL_PROMPT_STRATEGY == "dual_hard_v5":
+        templates = merged.setdefault("recommended_templates", {})
+        templates["dual_rain_vehicle"] = {"weight": 1.0}
+        templates["dual_rainy_night_vehicle"] = {"weight": 0.55}
+        templates["dual_snow_vehicle"] = {"weight": 0.25}
+        templates["dual_night_vehicle"] = {"weight": 0.0}
+        templates["dual_overcast_vehicle"] = {"weight": 0.0}
+        templates["dual_fog_vehicle"] = {"weight": 0.0}
+        for key in list(templates):
+            if key.startswith("dual_") and key.endswith("_person"):
+                templates[key] = {"weight": 0.0}
+        occlusion_stats = merged.setdefault("occlusion_statistics", {})
+        occlusion_stats["vehicle"] = {"priority": 1, "status": "required"}
+        occlusion_stats["person"] = {"priority": 99, "status": "disabled_for_v5"}
+        prompt_rules = merged.setdefault("prompt_rules", {})
+        vehicle_rules = prompt_rules.setdefault("vehicle", {})
+        vehicle_rules["preferred_size"] = "medium_large_vehicle_existing_geometry_only"
+        vehicle_rules["max_area_ratio"] = 0.28
+        required = list(vehicle_rules.get("required", []))
+        for item in [
+            "existing road and parking geometry only",
+            "no new architecture",
+            "no new windows",
+            "preserve empty skyline and background",
+            "wet road reflection without scene reconstruction",
+        ]:
+            if item not in required:
+                required.append(item)
+        vehicle_rules["required"] = required
+    elif DUAL_PROMPT_STRATEGY == "dual_hard_v4":
+        templates = merged.setdefault("recommended_templates", {})
+        templates["dual_rain_vehicle"] = {"weight": 1.0}
+        templates["dual_rainy_night_vehicle"] = {"weight": 0.95}
+        templates["dual_snow_vehicle"] = {"weight": 0.35}
+        templates["dual_night_vehicle"] = {"weight": 0.0}
+        templates["dual_overcast_vehicle"] = {"weight": 0.0}
+        templates["dual_fog_vehicle"] = {"weight": 0.0}
+        for key in list(templates):
+            if key.startswith("dual_") and key.endswith("_person"):
+                templates[key] = {"weight": 0.0}
+        occlusion_stats = merged.setdefault("occlusion_statistics", {})
+        occlusion_stats["vehicle"] = {"priority": 1, "status": "required"}
+        occlusion_stats["person"] = {"priority": 99, "status": "disabled_for_v4"}
+        prompt_rules = merged.setdefault("prompt_rules", {})
+        vehicle_rules = prompt_rules.setdefault("vehicle", {})
+        vehicle_rules["preferred_size"] = "large_box_truck_or_bus_wet_reflection_band"
+        vehicle_rules["max_area_ratio"] = 0.32
+        required = list(vehicle_rules.get("required", []))
+        for item in [
+            "large box truck or bus",
+            "continuous wet reflective road band",
+            "intersection or parking-strip cue interruption",
+            "lane curb crosswalk lower-facade boundary occlusion",
+            "visible wheels and perspective-aligned contact shadows",
+        ]:
+            if item not in required:
+                required.append(item)
+        vehicle_rules["required"] = required
+    elif DUAL_PROMPT_STRATEGY == "dual_hard_v3":
+        templates = merged.setdefault("recommended_templates", {})
+        templates["dual_rainy_night_vehicle"] = {"weight": 1.0}
+        templates["dual_rain_vehicle"] = {"weight": 0.82}
+        templates["dual_snow_vehicle"] = {"weight": 0.72}
+        templates["dual_night_vehicle"] = {"weight": 0.25}
+        templates["dual_overcast_vehicle"] = {"weight": 0.0}
+        templates["dual_fog_vehicle"] = {"weight": 0.0}
+        prompt_rules = merged.setdefault("prompt_rules", {})
+        vehicle_rules = prompt_rules.setdefault("vehicle", {})
+        vehicle_rules["preferred_size"] = "large_midground_plus_small_foreground"
+        vehicle_rules["max_area_ratio"] = 0.30
+        required = list(vehicle_rules.get("required", []))
+        for item in [
+            "continuous lower-facade curb lane cue interruption",
+            "hard weather visibility reduction",
+            "wet reflection or slush around occluder",
+            "secondary foreground-side cue",
+        ]:
+            if item not in required:
+                required.append(item)
+        vehicle_rules["required"] = required
+    elif DUAL_PROMPT_STRATEGY == "test20_v1":
+        templates = merged.setdefault("recommended_templates", {})
+        templates["dual_rain_vehicle"] = {"weight": 0.9}
+        templates["dual_overcast_vehicle"] = {"weight": 0.85}
+        templates["dual_night_vehicle"] = {"weight": 0.65}
+        templates["global_rain"] = {"weight": 0.9}
+        templates["global_overcast"] = {"weight": 0.5}
+        prompt_rules = merged.setdefault("prompt_rules", {})
+        vehicle_rules = prompt_rules.setdefault("vehicle", {})
+        vehicle_rules["preferred_size"] = "medium_to_large"
+        vehicle_rules["max_area_ratio"] = 0.22
+        required = list(vehicle_rules.get("required", []))
+        for item in [
+            "continuous lane-level occlusion",
+            "meaningful curbside occlusion",
+            "clear road-cue interruption",
+        ]:
+            if item not in required:
+                required.append(item)
+        vehicle_rules["required"] = required
+    return merged
 
 
 def load_experience_bank(path: str | Path | None = None) -> dict:
@@ -449,8 +627,8 @@ def negative_prompt_from_experience(bank: dict | None = None) -> str:
         forbidden.extend(rules.get(key, {}).get("forbidden", []))
     extra = ", ".join(str(item) for item in forbidden)
     if not extra:
-        return f"{NEGATIVE_PROMPT}, {GLOBAL_NEGATIVE_PROMPT}"
-    return f"{NEGATIVE_PROMPT}, {GLOBAL_NEGATIVE_PROMPT}, {extra}"
+        return f"{NEGATIVE_PROMPT}, {GLOBAL_NEGATIVE_PROMPT}, {LIGHTX2V_LOCAL_MULTI_NEGATIVE_TERMS}"
+    return f"{NEGATIVE_PROMPT}, {GLOBAL_NEGATIVE_PROMPT}, {LIGHTX2V_LOCAL_MULTI_NEGATIVE_TERMS}, {extra}"
 
 
 def global_negative_prompt() -> str:
@@ -552,6 +730,66 @@ def _short_position(position: str, occlusion: str | None) -> str:
     return text
 
 
+def _local_vehicle_crowded_remove_prompt(position: str) -> str:
+    pos = _short_position(position, "vehicle")
+    return (
+        "Conservative street-view edit for a vehicle-heavy original scene. The original image already "
+        "contains several vehicles or visually crowded curb/road areas. "
+        "If more than three vehicles are visible in the target road, curbside, or parking area, reduce "
+        "vehicle clutter instead of adding cars: remove 1-2 least important background or curbside "
+        "vehicles only, and naturally fill those regions with matching road, curb, sidewalk, parking-lane "
+        "texture, shadows, or background continuation. Keep at most 1-2 clearly visible vehicles in the "
+        "edited target area. If a local occluder is still needed, prefer one cyclist or one pedestrian near "
+        "the road edge rather than adding another car. "
+        f"Place any remaining local edit only on or immediately beside: {pos}. "
+        "Preserve road geometry, lane markings, camera viewpoint, building facades, storefronts, signs, "
+        "windows, doors, existing place identity, and global lighting/weather. Do not remove landmark "
+        "objects, traffic signs, storefront identity, lane markings, or vehicles that define the place. "
+        "Avoid traffic jams, dense vehicle clusters, new background cars, oversized foreground cars, black "
+        "vehicle blocks, pasted cutouts, floating objects, and over-occlusion. Natural photorealistic "
+        "street-view image."
+    )
+
+
+def _local_multi_occlusion_prompt(occlusion: str | None, position: str, original_vehicle_crowded: bool = False) -> str:
+    if occlusion == "vehicle" and original_vehicle_crowded:
+        return _local_vehicle_crowded_remove_prompt(position)
+
+    pos = _short_position(position, occlusion)
+    if occlusion == "person":
+        occluders = (
+            "Add controlled multi-occlusion with 2-4 realistic full-body pedestrians, "
+            "optionally one cyclist or scooter rider if a road-edge or crosswalk is visible, "
+            "and optionally one small roadside tree or pole-side shrub only near the curb."
+        )
+    elif occlusion == "vehicle":
+        occluders = (
+            "Add controlled multi-occlusion with 2-3 realistic street vehicles such as cars, "
+            "vans, taxis, or a small bus, optionally one cyclist or scooter rider near the road edge, "
+            "and optionally one small roadside tree near the curb."
+        )
+    else:
+        occluders = (
+            "Add controlled multi-occlusion with 1-3 realistic local street occluders, including "
+            "vehicles, pedestrians, cyclists or scooter riders, and optionally one small roadside tree."
+        )
+    return (
+        f"{occluders} Place them only on or immediately beside: {pos}. "
+        "Total new occluder area should occupy approximately 12-20% of the image. "
+        "Occluders should be clearly visible at mid-ground or near-ground scale, with realistic texture, "
+        "matched lighting, contact shadows, wheels or feet aligned to the ground plane, and noticeable but "
+        "natural local occlusion. Prioritize partially occluding traffic lanes, curbside lanes, roadside areas, "
+        "sidewalks, and lower street-level foreground. Mildly occluding the lower edge of buildings, shopfront "
+        "corners, parked-car edges, or non-core facade margins is allowed. Do not cover main sign text, landmark "
+        "structures, central building facade areas, storefront identity, lane geometry, or place-defining details. "
+        "Preserve road geometry, camera viewpoint, building structure, road layout, lane markings, signs, windows, "
+        "doors, existing place identity, and global lighting/weather. Do not change weather, time of day, color "
+        "style, viewpoint, architecture, or road layout. Natural photorealistic street-view image. Avoid tiny "
+        "occluders, weak occlusion, barely visible objects, sticker-like cutouts, floating objects, black silhouettes, "
+        "edge-attached objects, dense crowds, traffic jams, or over-occlusion."
+    )
+
+
 def build_structured_prompt(
     route: str,
     weather: str | None,
@@ -559,6 +797,7 @@ def build_structured_prompt(
     position: str = "",
     base_prompt: str = "",
     experience_bank: dict | None = None,
+    original_vehicle_crowded: bool = False,
 ) -> str:
     """Build compact model prompts. Positive prompts only say what to generate."""
     bank = normalize_experience_bank(experience_bank)
@@ -574,6 +813,8 @@ def build_structured_prompt(
             "Do not call generation service."
         )
     if route == "global":
+        if weather == "rain":
+            return GLOBAL_RAIN_CONSERVATIVE_PROMPT
         if weather == "snow":
             return GLOBAL_SNOW_CONSERVATIVE_PROMPT
         if weather == "night":
@@ -584,6 +825,9 @@ def build_structured_prompt(
             "Preserve road geometry, camera viewpoint, building facades, storefronts, signs, doors, "
             "windows, wall materials, rooflines, original facade colors, and storefront identity."
         )
+
+    if route == "local":
+        return _local_multi_occlusion_prompt(occlusion, position, original_vehicle_crowded=original_vehicle_crowded)
 
     pos = _short_position(position, occlusion)
     preserve = (
@@ -603,16 +847,108 @@ def build_structured_prompt(
     else:
         occluder_text = f"Add exactly one realistic street participant on {pos}."
 
-    if route == "local":
-        return f"{occluder_text} {preserve} Photorealistic street-view image."
-
     if route == "dual":
         weather_instr = WEATHER_INSTRUCTION_PHRASES.get(weather or "", f"Apply {weather} weather only.")
+        if DUAL_PROMPT_STRATEGY == "dual_hard_v5" and weather == "rainy_night":
+            weather_instr = (
+                "Apply rainy night weather only:\n"
+                "darken the existing sky and scene into realistic rainy night or late-evening lighting,\n"
+                "add visible rain streaks, wet pavement, puddles, and reflections from already visible lamps, headlights, signs, or vehicles,\n"
+                "only existing windows may become slightly lit if they are already present in the original image,\n"
+                "do not add any new buildings, windows, walls, storefronts, skyline blocks, or architectural structures."
+            )
+        if DUAL_PROMPT_STRATEGY == "dual_hard_v5":
+            dual_vehicle_focus = (
+                "Make this a hard but structure-preserving VPR-positive edit. The vehicle and weather should make the "
+                "lower street harder through existing road cues only: lane markings, curb lines, parking-strip edges, "
+                "crosswalk bars, roadside parking, puddles, wet asphalt, and reflections. Do not use or mention "
+                "storefront lower margins, facade edges, building windows, skyline, or architectural features unless "
+                "they are clearly already present in the original image; even then, preserve their exact shape and "
+                "layout. No new architecture is allowed: no new buildings, no added facades, no added windows, no new "
+                "walls, no new storefronts, no new skyline blocks, no new background structures. If the original scene "
+                "is an open road, parking lot, highway ramp, industrial yard, or sparse street, keep it open and sparse. "
+                "Use rain, puddles, tire spray, headlight reflection, and a perspective-aligned truck/bus to interrupt "
+                "existing road/parking geometry, while preserving exact camera viewpoint, road topology, existing "
+                "background, signs, trees, poles, barriers, parked vehicles, and place identity."
+            )
+        elif DUAL_PROMPT_STRATEGY == "dual_hard_v4":
+            dual_vehicle_focus = (
+                "Make this a hard VPR-positive edit by copying the observed successful pattern: a large realistic "
+                "box truck, delivery van, bus, or service vehicle creates the main occlusion while heavy rain or rainy "
+                "night lighting creates a broad wet reflection band across the lower half of the street. The truck/bus "
+                "must interrupt one continuous structural cue used for place recognition: crosswalk stripes, lane "
+                "markings, curb line, parking-lane boundary, sidewalk-road transition, storefront lower margin, or "
+                "sign-adjacent lower facade edge. Add headlight reflections, puddles, rain streaks, tire spray, and "
+                "glossy asphalt around the vehicle so the vehicle plus reflection becomes one difficult lower-scene "
+                "region. Keep the edit photorealistic and VPR-valid: preserve exact camera viewpoint, road topology, "
+                "building silhouettes, landmark structure, facade layout, main sign identity, and skyline. Do not "
+                "replace buildings, warp facades, create traffic jams, use black masks, or cover the full landmark facade."
+            )
+        elif DUAL_PROMPT_STRATEGY == "dual_hard_v3":
+            dual_vehicle_focus = (
+                "Make this a deliberately hard but still VPR-valid dual edit. The weather should reduce street-level "
+                "visibility through rain streaks, wet reflective glare, headlight spill, puddles, slush, tire tracks, "
+                "or low-light contrast loss. The dominant vehicle must cut across a continuous lower-scene recognition "
+                "band: curb line, lane marking, crosswalk edge, parking strip, storefront lower margin, sidewalk-road "
+                "transition, or sign-adjacent lower facade area. Add the smaller foreground-side cue only as natural "
+                "partial clutter, never as a black border block. Preserve the exact building silhouettes, landmark "
+                "structure, facade layout, main sign identity, road geometry, perspective, and camera viewpoint. Do not "
+                "replace buildings, repaint facades, cover the full landmark facade, or destroy place identity."
+            )
+        elif DUAL_PROMPT_STRATEGY == "dual_hard_v2":
+            dual_vehicle_focus = (
+                "Make the dual edit substantially harder than a normal positive while still VPR-valid. Combine a "
+                "strong weather/time shift with a contiguous lower-scene occlusion band. The dominant vehicle should "
+                "interrupt lane, curb, parking, or road-edge geometry, and the secondary cue should add local clutter "
+                "without becoming a traffic jam or crowd. Keep all landmark structure, building outline, facade layout, "
+                "main signs, road geometry, and camera viewpoint unchanged. Do not cover the central landmark facade or "
+                "destroy place identity."
+            )
+        elif DUAL_PROMPT_STRATEGY == "test20_v1":
+            dual_vehicle_focus = (
+                "Make the added vehicle the main place-recognition difficulty source. Do not place a decorative small "
+                "car. Place one larger realistic vehicle on the legal road surface or curbside parking area so that it "
+                "hides one continuous and meaningful street-level cue region, such as lane markings, curb transitions, "
+                "crosswalk edges, curbside parking-strip boundaries, parked-car edges, or lower storefront margins. "
+                "Prefer a closer, heavier, mid-ground occluder that interrupts contiguous road or curb geometry rather "
+                "than a tiny object. Keep landmark structure, main sign readability, overall facade identity, road "
+                "geometry, and viewpoint unchanged."
+            )
+        else:
+            dual_vehicle_focus = (
+                "Make the added vehicle the main local difficulty source: place it on the legal road surface or curbside "
+                "parking area so that it occludes a meaningful contiguous road region, such as lane markings, curbside "
+                "space, parked-car edges, or the lower street-level facade margin. Prefer a closer and slightly larger "
+                "vehicle placement that occupies one meaningful road chunk rather than a small decorative car. Keep "
+                "landmark structure and main sign text readable."
+            )
+        if weather == "overcast" and occlusion == "vehicle":
+            dual_vehicle_focus = (
+                f"{dual_vehicle_focus} Under the heavy overcast lighting, make the vehicle read clearly as a darker "
+                "mid-ground mass against the flatter street background, and let it block a slightly longer continuous "
+                "lane or curbside strip than in the rain/night variants, while still preserving the landmark facade."
+            )
+        elif DUAL_PROMPT_STRATEGY in {"test20_v1", "dual_hard_v2", "dual_hard_v3", "dual_hard_v4"} and weather == "rain" and occlusion == "vehicle":
+            dual_vehicle_focus = (
+                f"{dual_vehicle_focus} Under rain, extend the wet reflective region around the vehicle so the vehicle "
+                "plus adjacent lane, curb, and storefront-lower-boundary cues form one continuous difficult area, but do not blur geometry."
+            )
+        elif DUAL_PROMPT_STRATEGY in {"test20_v1", "dual_hard_v2", "dual_hard_v3", "dual_hard_v4"} and weather in {"night", "rainy_night"} and occlusion == "vehicle":
+            dual_vehicle_focus = (
+                f"{dual_vehicle_focus} Under night lighting, make the vehicle read clearly against the darker road and "
+                "use headlight glare and wet reflections to make the lower curb/lane/facade-boundary band harder without turning the whole image into unreadable darkness."
+            )
+        elif DUAL_PROMPT_STRATEGY in {"dual_hard_v2", "dual_hard_v3"} and weather == "snow" and occlusion == "vehicle":
+            dual_vehicle_focus = (
+                f"{dual_vehicle_focus} Under snow, add visible slush and compacted tire-track contrast around the vehicle "
+                "so the lower road, curb, and parking-strip region becomes harder, while keeping building geometry recoverable."
+            )
         return (
             f"Preserve all scene geometry, buildings, storefronts, signs, existing vehicles, "
             f"road layout and camera viewpoint.\n\n"
             f"{weather_instr}\n\n"
             f"{occluder_text}\n\n"
+            f"{dual_vehicle_focus}\n\n"
             f"Do not modify scene structure or object layout."
         )
 

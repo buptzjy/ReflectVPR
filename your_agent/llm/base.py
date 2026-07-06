@@ -3,13 +3,34 @@ import json
 from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+# Do not implicitly load the old paid Yunwu credentials. Cloud configuration
+# remains available only as an explicit opt-in for legacy experiments.
+if os.getenv("REFLECTVPR_ENABLE_CLOUD_LLM", "0").lower() in {"1", "true", "yes"}:
+    load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 
 def build_llm_client():
-    api_key = os.getenv("OPENAI_API_KEY", "")
-    api_base = os.getenv("OPENAI_API_BASE", "https://api.yunwu.ai/v1")
-    model_name = os.getenv("OPENAI_MODEL_NAME", "qwen3.5-35b-a3b")
+    cloud_enabled = os.getenv("REFLECTVPR_ENABLE_CLOUD_LLM", "0").lower() in {
+        "1", "true", "yes"
+    }
+    if cloud_enabled:
+        api_key = os.getenv("OPENAI_API_KEY", "")
+        api_base = os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")
+        model_name = os.getenv("OPENAI_MODEL_NAME", "")
+    else:
+        # Keep planner configuration independent from the legacy generator
+        # .env, which may still contain paid/cloud OPENAI_* variables.
+        api_key = os.getenv("REFLECTVPR_PLANNER_API_KEY", "local")
+        api_base = os.getenv(
+            "REFLECTVPR_PLANNER_API_BASE",
+            "http://10.160.4.126:23002/v1",
+        )
+        model_name = os.getenv(
+            "REFLECTVPR_PLANNER_MODEL",
+            "qwen3-vl-4b-instruct-remote",
+        )
+    timeout = float(os.getenv("OPENAI_TIMEOUT", "20"))
+    max_retries = int(os.getenv("OPENAI_MAX_RETRIES", "0"))
 
     if api_key and api_key != "sk-xxx":
         try:
@@ -17,8 +38,13 @@ def build_llm_client():
         except ImportError:
             print("[LLM] 检测到 API_KEY 但未安装 openai 包，使用 Mock 客户端")
             return _MockLLMClient()
-        client = OpenAI(api_key=api_key, base_url=api_base)
-        print(f"[LLM] 真实客户端: base_url={api_base}, model={model_name}")
+        client = OpenAI(
+            api_key=api_key,
+            base_url=api_base,
+            timeout=timeout,
+            max_retries=max_retries,
+        )
+        print(f"[LLM] 真实客户端: base_url={api_base}, model={model_name}, timeout={timeout}s")
         return _RealLLMClient(client, model_name)
 
     print("[LLM] 未检测到有效 API_KEY，使用 Mock 客户端")
@@ -69,7 +95,7 @@ class _RealLLMClient:
 
 class _MockLLMClient:
     def chat(self, system="", user="", json_mode=False, temperature=0.7, model=None):
-        if json_mode or model == "qwen-vl-max":
+        if json_mode or model == "qwen3-vl-flash":
             return json.dumps({
                 "scene_summary": "rainy night road with truck occlusion",
                 "weather": "rain",

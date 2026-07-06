@@ -1,0 +1,86 @@
+[
+  {
+    "file_name": "London_0001649_2016_09_142_51.4942398334719_-0.1345726521818796_jZDwCX-U_-MCaKFwJJIvVw.jpg",
+    "city": "London",
+    "route": "dual",
+    "weather": "rain",
+    "occlusion": "vehicle",
+    "weather_score": 0,
+    "occlusion_score": 0,
+    "selected_model": "LightX2V-Dual",
+    "prompt": "Task: apply the target weather or time-of-day and add exactly one local occluder. Target weather: rain, rain. Occluder: exactly one vehicle, close to the camera, large, significantly obscuring a meaningful local region; one vehicle close to the camera on a plausible road edge or lane, perspective-consistent scale. Precise position: a plausible foreground road edge or lane, perspective-consistent with the scene. Preserve: preserve exact road layout, camera viewpoint, building geometry, lane markings, traffic signs, existing vehicles, and place identity. Forbidden: no new background vehicles, no dense crowds, no traffic jams, no new traffic signs, no readable hallucinated text, no logo or license plate changes, no warped buildings, no changed viewpoint. Style and quality: photorealistic street-view image, natural exposure, matched lighting, realistic shadows, no pasted-object appearance.",
+    "reason": "",
+    "risk_score": 0,
+    "risk_flags": [],
+    "skip_recommendation": false,
+    "source_path": "/media/data1/chenshunpeng1/datasets/gsv_cities/Images/London/London_0001649_2016_09_142_51.4942398334719_-0.1345726521818796_jZDwCX-U_-MCaKFwJJIvVw.jpg",
+    "output_path": "/media/data/zhangjingyi/ReflectVPR/output/mock/dual/London_0001649_2016_09_142_51.4942398334719_-0.1345726521818796_jZDwCX-U_-MCaKFwJJIvVw__dual_rain_vehicle__final.jpg",
+    "final_reflect_path": "/media/data/zhangjingyi/ReflectVPR/output/mock/rounds/London_0001649_2016_09_142_51.4942398334719_-0.1345726521818796_jZDwCX-U_-MCaKFwJJIvVw/r1.jpg",
+    "final_prompt": "Task: apply the target weather or time-of-day and add exactly one local occluder. Target weather: rain, rain. Occluder: exactly one vehicle, close to the camera, large, significantly obscuring a meaningful local region; one vehicle close to the camera on a plausible road edge or lane, perspective-consistent scale. Precise position: a plausible foreground road edge or lane, perspective-consistent with the scene. Preserve: preserve exact road layout, camera viewpoint, building geometry, lane markings, traffic signs, existing vehicles, and place identity. Forbidden: no new background vehicles, no dense crowds, no traffic jams, no new traffic signs, no readable hallucinated text, no logo or license plate changes, no warped buildings, no changed viewpoint. Style and quality: photorealistic street-view image, natural exposure, matched lighting, realistic shadows, no pasted-object appearance.",
+    "reflection_rounds": [
+      {
+        "round": 1,
+        "prompt": "Task: apply the target weather or time-of-day and add exactly one local occluder. Target weather: rain, rain. Occluder: exactly one vehicle, close to the camera, large, significantly obscuring a meaningful local region; one vehicle close to the camera on a plausible road edge or lane, perspective-consistent scale. Precise position: a plausible foreground road edge or lane, perspective-consistent with the scene. Preserve: preserve exact road layout, camera viewpoint, building geometry, lane markings, traffic signs, existing vehicles, and place identity. Forbidden: no new background vehicles, no dense crowds, no traffic jams, no new traffic signs, no readable hallucinated text, no logo or license plate changes, no warped buildings, no changed viewpoint. Style and quality: photorealistic street-view image, natural exposure, matched lighting, realistic shadows, no pasted-object appearance.",
+        "image_path": "/media/data/zhangjingyi/ReflectVPR/output/mock/rounds/London_0001649_2016_09_142_51.4942398334719_-0.1345726521818796_jZDwCX-U_-MCaKFwJJIvVw/r1.jpg",
+        "eval": {
+          "passed": true,
+          "s_geo": 0.8610996906231051,
+          "s_div": 0.28762645370561407,
+          "geo_ok": true,
+          "div_ok": true,
+          "feedback": {
+            "status": "通过，无需修改。"
+          }
+        }
+      }
+    ],
+    "passed": true,
+    "s_geo": 0.8610996906231051,
+    "s_div": 0.28762645370561407,
+    "geo_ok": true,
+    "div_ok": true,
+    "rounds_used": 1
+  },
+  {
+    "file_name": "London_0001431_2014_06_030_51.49250593918436_-0.086044077953118_-vXy2qIj6WINtrjHw8gqiw.jpg",
+    "city": "London",
+    "route": "dual",
+    "weather": "rain",
+    "occlusion": "vehicle",
+    "weather_score": 0,
+    "occlusion_score": 0,
+    "selected_model": "LightX2V-Dual",
+    "prompt": "Task: apply the target weather or time-of-day and add exactly one local occluder. Target weather: rain, rain. Occluder: exactly one vehicle, close to the camera, large, significantly obscuring a meaningful local region; one vehicle close to the camera on a plausible road edge or lane, perspective-consistent scale. Precise position: a plausible foreground road edge or lane, perspective-consistent with the scene. Preserve: preserve exact road layout, camera viewpoint, building geometry, lane markings, traffic signs, existing vehicles, and place identity. Forbidden: no new background vehicles, no dense crowds, no traffic jams, no new traffic signs, no readable hallucinated text, no logo or license plate changes, no warped buildings, no changed viewpoint. Style and quality: photorealistic street-view image, natural exposure, matched lighting, realistic shadows, no pasted-object appearance.",
+    "reason": "",
+    "risk_score": 0,
+    "risk_flags": [],
+    "skip_recommendation": false,
+    "source_path": "/media/data1/chenshunpeng1/datasets/gsv_cities/Images/London/London_0001431_2014_06_030_51.49250593918436_-0.086044077953118_-vXy2qIj6WINtrjHw8gqiw.jpg",
+    "output_path": "/media/data/zhangjingyi/ReflectVPR/output/mock/dual/London_0001431_2014_06_030_51.49250593918436_-0.086044077953118_-vXy2qIj6WINtrjHw8gqiw__dual_rain_vehicle__final.jpg",
+    "final_reflect_path": "/media/data/zhangjingyi/ReflectVPR/output/mock/rounds/London_0001431_2014_06_030_51.49250593918436_-0.086044077953118_-vXy2qIj6WINtrjHw8gqiw/r1.jpg",
+    "final_prompt": "Task: apply the target weather or time-of-day and add exactly one local occluder. Target weather: rain, rain. Occluder: exactly one vehicle, close to the camera, large, significantly obscuring a meaningful local region; one vehicle close to the camera on a plausible road edge or lane, perspective-consistent scale. Precise position: a plausible foreground road edge or lane, perspective-consistent with the scene. Preserve: preserve exact road layout, camera viewpoint, building geometry, lane markings, traffic signs, existing vehicles, and place identity. Forbidden: no new background vehicles, no dense crowds, no traffic jams, no new traffic signs, no readable hallucinated text, no logo or license plate changes, no warped buildings, no changed viewpoint. Style and quality: photorealistic street-view image, natural exposure, matched lighting, realistic shadows, no pasted-object appearance.",
+    "reflection_rounds": [
+      {
+        "round": 1,
+        "prompt": "Task: apply the target weather or time-of-day and add exactly one local occluder. Target weather: rain, rain. Occluder: exactly one vehicle, close to the camera, large, significantly obscuring a meaningful local region; one vehicle close to the camera on a plausible road edge or lane, perspective-consistent scale. Precise position: a plausible foreground road edge or lane, perspective-consistent with the scene. Preserve: preserve exact road layout, camera viewpoint, building geometry, lane markings, traffic signs, existing vehicles, and place identity. Forbidden: no new background vehicles, no dense crowds, no traffic jams, no new traffic signs, no readable hallucinated text, no logo or license plate changes, no warped buildings, no changed viewpoint. Style and quality: photorealistic street-view image, natural exposure, matched lighting, realistic shadows, no pasted-object appearance.",
+        "image_path": "/media/data/zhangjingyi/ReflectVPR/output/mock/rounds/London_0001431_2014_06_030_51.49250593918436_-0.086044077953118_-vXy2qIj6WINtrjHw8gqiw/r1.jpg",
+        "eval": {
+          "passed": true,
+          "s_geo": 0.7708902877417105,
+          "s_div": 0.3090491024377301,
+          "geo_ok": true,
+          "div_ok": true,
+          "feedback": {
+            "status": "通过，无需修改。"
+          }
+        }
+      }
+    ],
+    "passed": true,
+    "s_geo": 0.7708902877417105,
+    "s_div": 0.3090491024377301,
+    "geo_ok": true,
+    "div_ok": true,
+    "rounds_used": 1
+  }
+]

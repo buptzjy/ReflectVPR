@@ -1,5 +1,6 @@
 import base64
 import json
+import os
 from io import BytesIO
 from PIL import Image
 
@@ -49,6 +50,10 @@ def build_generation_prompt_request(scene_info: dict, route: str) -> str:
 class ScenePlanner:
     def __init__(self, llm_client):
         self.client = llm_client
+        self.model = os.getenv(
+            "REFLECTVPR_PLANNER_MODEL",
+            "qwen3-vl-4b-instruct-remote",
+        )
 
     def understand_scene(self, image: Image.Image) -> dict:
         b64 = _image_to_base64(image)
@@ -60,7 +65,7 @@ class ScenePlanner:
             images=[b64],
             json_mode=False,
             temperature=0.3,
-            model="qwen-vl-max",
+            model=self.model,
         )
 
         raw = raw.strip().replace("```json", "").replace("```", "").strip()
@@ -76,7 +81,7 @@ class ScenePlanner:
         prompt = self.client.chat(
             user=request_text,
             temperature=0.7,
-            model="qwen-max",
+            model=self.model,
         )
 
         print(f"[Planner] 初始Prompt: {prompt}")

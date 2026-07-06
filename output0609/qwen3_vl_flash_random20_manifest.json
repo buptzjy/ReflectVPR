@@ -1,0 +1,162 @@
+[
+  {
+    "city": "Bangkok",
+    "route": "global",
+    "passed": false,
+    "src": "/media/data1/chenshunpeng1/datasets/gsv_cities/Images/Bangkok/Bangkok_0001210_2017_11_254_13.72862586956379_100.5598832064651_w_Ep5St-VRPLMHJFCfQ0ug.jpg",
+    "gen": "/data_nvme/zhangjingyi/ReflectVPR/output_gsv23_100k/Bangkok/global/Bangkok_0001210_2017_11_254_13.72862586956379_100.5598832064651_w_Ep5St-VRPLMHJFCfQ0ug__global_snow__final.jpg",
+    "stem": "Bangkok_0001210_2017_11_254_13.72862586956379_100.5598832064651_w_Ep5St-VRPLMHJFCfQ0ug"
+  },
+  {
+    "city": "Madrid",
+    "route": "local",
+    "passed": true,
+    "src": "/media/data1/chenshunpeng1/datasets/gsv_cities/Images/Madrid/Madrid_0000880_2015_06_256_40.40935738098322_-3.704428023132149_xKriCXPp6jWsVw9Lp2QLAg.jpg",
+    "gen": "/data_nvme/zhangjingyi/ReflectVPR/output_gsv23_100k/Madrid/local/Madrid_0000880_2015_06_256_40.40935738098322_-3.704428023132149_xKriCXPp6jWsVw9Lp2QLAg__local_vehicle__final.jpg",
+    "stem": "Madrid_0000880_2015_06_256_40.40935738098322_-3.704428023132149_xKriCXPp6jWsVw9Lp2QLAg"
+  },
+  {
+    "city": "TRT",
+    "route": "global",
+    "passed": false,
+    "src": "/media/data1/chenshunpeng1/datasets/gsv_cities/Images/TRT/TRT_0000176_2016_05_283_43.63508752784325_-79.49968835506671_8C2r9yd4Vez7oXrC-Xz5jg.jpg",
+    "gen": "/data_nvme/zhangjingyi/ReflectVPR/output_gsv23_100k/TRT/global/TRT_0000176_2016_05_283_43.63508752784325_-79.49968835506671_8C2r9yd4Vez7oXrC-Xz5jg__global_snow__final.jpg",
+    "stem": "TRT_0000176_2016_05_283_43.63508752784325_-79.49968835506671_8C2r9yd4Vez7oXrC-Xz5jg"
+  },
+  {
+    "city": "LosAngeles",
+    "route": "global",
+    "passed": false,
+    "src": "/media/data1/chenshunpeng1/datasets/gsv_cities/Images/LosAngeles/LosAngeles_0000715_2011_01_403_34.05130317466939_-118.2379888374602_ITrZlW5Ib7nj57bJ_rl1Kw.jpg",
+    "gen": "/data_nvme/zhangjingyi/ReflectVPR/output_gsv23_100k/LosAngeles/global/LosAngeles_0000715_2011_01_403_34.05130317466939_-118.2379888374602_ITrZlW5Ib7nj57bJ_rl1Kw__global_rain__final.jpg",
+    "stem": "LosAngeles_0000715_2011_01_403_34.05130317466939_-118.2379888374602_ITrZlW5Ib7nj57bJ_rl1Kw"
+  },
+  {
+    "city": "Rome",
+    "route": "local",
+    "passed": true,
+    "src": "/media/data1/chenshunpeng1/datasets/gsv_cities/Images/Rome/Rome_0002343_2015_08_217_41.90544055554481_12.45780611077308_RStghqqD1FTUMO2FxxJhsg.jpg",
+    "gen": "/data_nvme/zhangjingyi/ReflectVPR/output_gsv23_100k/Rome/local/Rome_0002343_2015_08_217_41.90544055554481_12.45780611077308_RStghqqD1FTUMO2FxxJhsg__local_vehicle__final.jpg",
+    "stem": "Rome_0002343_2015_08_217_41.90544055554481_12.45780611077308_RStghqqD1FTUMO2FxxJhsg"
+  },
+  {
+    "city": "Minneapolis",
+    "route": "local",
+    "passed": true,
+    "src": "/media/data1/chenshunpeng1/datasets/gsv_cities/Images/Minneapolis/Minneapolis_0000742_2014_10_203_44.94662055177221_-93.2852036012112_BSSdJC1Tvz7GiDt5silYyA.jpg",
+    "gen": "/data_nvme/zhangjingyi/ReflectVPR/output_gsv23_100k/Minneapolis/local/Minneapolis_0000742_2014_10_203_44.94662055177221_-93.2852036012112_BSSdJC1Tvz7GiDt5silYyA__local_vehicle__final.jpg",
+    "stem": "Minneapolis_0000742_2014_10_203_44.94662055177221_-93.2852036012112_BSSdJC1Tvz7GiDt5silYyA"
+  },
+  {
+    "city": "TRT",
+    "route": "global",
+    "passed": true,
+    "src": "/media/data1/chenshunpeng1/datasets/gsv_cities/Images/TRT/TRT_0000117_2011_08_571_43.63178499256011_-79.5924424017104_TojGQtWN3Yt_tni2xl8KxQ.jpg",
+    "gen": "/data_nvme/zhangjingyi/ReflectVPR/output_gsv23_100k/TRT/global/TRT_0000117_2011_08_571_43.63178499256011_-79.5924424017104_TojGQtWN3Yt_tni2xl8KxQ__global_snow__final.jpg",
+    "stem": "TRT_0000117_2011_08_571_43.63178499256011_-79.5924424017104_TojGQtWN3Yt_tni2xl8KxQ"
+  },
+  {
+    "city": "Madrid",
+    "route": "global",
+    "passed": true,
+    "src": "/media/data1/chenshunpeng1/datasets/gsv_cities/Images/Madrid/Madrid_0000084_2011_04_112_40.39510636716084_-3.688454815082864_94K91i0l8J_jq8_SSQUWuw.jpg",
+    "gen": "/data_nvme/zhangjingyi/ReflectVPR/output_gsv23_100k/Madrid/global/Madrid_0000084_2011_04_112_40.39510636716084_-3.688454815082864_94K91i0l8J_jq8_SSQUWuw__global_overcast__final.jpg",
+    "stem": "Madrid_0000084_2011_04_112_40.39510636716084_-3.688454815082864_94K91i0l8J_jq8_SSQUWuw"
+  },
+  {
+    "city": "WashingtonDC",
+    "route": "global",
+    "passed": false,
+    "src": "/media/data1/chenshunpeng1/datasets/gsv_cities/Images/WashingtonDC/WashingtonDC_0000943_2018_10_134_38.90373639747587_-77.03957334085167_bp6rKsC4G0UtYOoXoGPGcQ.jpg",
+    "gen": "/data_nvme/zhangjingyi/ReflectVPR/output_gsv23_100k/WashingtonDC/global/WashingtonDC_0000943_2018_10_134_38.90373639747587_-77.03957334085167_bp6rKsC4G0UtYOoXoGPGcQ__global_night__final.jpg",
+    "stem": "WashingtonDC_0000943_2018_10_134_38.90373639747587_-77.03957334085167_bp6rKsC4G0UtYOoXoGPGcQ"
+  },
+  {
+    "city": "Madrid",
+    "route": "dual",
+    "passed": true,
+    "src": "/media/data1/chenshunpeng1/datasets/gsv_cities/Images/Madrid/Madrid_0001523_2014_02_257_40.42014197086257_-3.69945532736004_AOG33z8DA_HOX8pr4IAhLw.jpg",
+    "gen": "/data_nvme/zhangjingyi/ReflectVPR/output_gsv23_100k/Madrid/dual/Madrid_0001523_2014_02_257_40.42014197086257_-3.69945532736004_AOG33z8DA_HOX8pr4IAhLw__dual_rainy_night_vehicle__final.jpg",
+    "stem": "Madrid_0001523_2014_02_257_40.42014197086257_-3.69945532736004_AOG33z8DA_HOX8pr4IAhLw"
+  },
+  {
+    "city": "WashingtonDC",
+    "route": "dual",
+    "passed": false,
+    "src": "/media/data1/chenshunpeng1/datasets/gsv_cities/Images/WashingtonDC/WashingtonDC_0001308_2019_07_383_38.90964357869854_-77.02063652743212_jj2Oqv7tQsjamNK8_Q5f4w.jpg",
+    "gen": "/data_nvme/zhangjingyi/ReflectVPR/output_gsv23_100k/WashingtonDC/dual/WashingtonDC_0001308_2019_07_383_38.90964357869854_-77.02063652743212_jj2Oqv7tQsjamNK8_Q5f4w__dual_snow_vehicle__final.jpg",
+    "stem": "WashingtonDC_0001308_2019_07_383_38.90964357869854_-77.02063652743212_jj2Oqv7tQsjamNK8_Q5f4w"
+  },
+  {
+    "city": "WashingtonDC",
+    "route": "dual",
+    "passed": false,
+    "src": "/media/data1/chenshunpeng1/datasets/gsv_cities/Images/WashingtonDC/WashingtonDC_0000980_2018_08_401_38.9037549246568_-77.00656183388844_cmdqTSlqe8Dp36FwTsRebw.jpg",
+    "gen": "/data_nvme/zhangjingyi/ReflectVPR/output_gsv23_100k/WashingtonDC/dual/WashingtonDC_0000980_2018_08_401_38.9037549246568_-77.00656183388844_cmdqTSlqe8Dp36FwTsRebw__dual_snow_vehicle__final.jpg",
+    "stem": "WashingtonDC_0000980_2018_08_401_38.9037549246568_-77.00656183388844_cmdqTSlqe8Dp36FwTsRebw"
+  },
+  {
+    "city": "Barcelona",
+    "route": "global",
+    "passed": false,
+    "src": "/media/data1/chenshunpeng1/datasets/gsv_cities/Images/Barcelona/Barcelona_0001305_2012_10_409_41.39257789575558_2.142656154325562_pqXOV-mpkOIAOq41Nlh5_g.jpg",
+    "gen": "/data_nvme/zhangjingyi/ReflectVPR/output_gsv23_100k/Barcelona/global/Barcelona_0001305_2012_10_409_41.39257789575558_2.142656154325562_pqXOV-mpkOIAOq41Nlh5_g__global_rain__final.jpg",
+    "stem": "Barcelona_0001305_2012_10_409_41.39257789575558_2.142656154325562_pqXOV-mpkOIAOq41Nlh5_g"
+  },
+  {
+    "city": "Brussels",
+    "route": "dual",
+    "passed": false,
+    "src": "/media/data1/chenshunpeng1/datasets/gsv_cities/Images/Brussels/Brussels_0000150_2019_10_118_50.82984857441541_4.378943292865386_CMcE01CVTDDtNpe4w2e5Bw.jpg",
+    "gen": "/data_nvme/zhangjingyi/ReflectVPR/output_gsv23_100k/Brussels/dual/Brussels_0000150_2019_10_118_50.82984857441541_4.378943292865386_CMcE01CVTDDtNpe4w2e5Bw__dual_rain_vehicle__final.jpg",
+    "stem": "Brussels_0000150_2019_10_118_50.82984857441541_4.378943292865386_CMcE01CVTDDtNpe4w2e5Bw"
+  },
+  {
+    "city": "PRG",
+    "route": "dual",
+    "passed": true,
+    "src": "/media/data1/chenshunpeng1/datasets/gsv_cities/Images/PRG/PRG_0000705_2019_03_428_50.05560946446206_14.33608558192138_tgLKS1EzWgD_B1HW0mPLsw.jpg",
+    "gen": "/data_nvme/zhangjingyi/ReflectVPR/output_gsv23_100k/PRG/dual/PRG_0000705_2019_03_428_50.05560946446206_14.33608558192138_tgLKS1EzWgD_B1HW0mPLsw__dual_rainy_night_vehicle__final.jpg",
+    "stem": "PRG_0000705_2019_03_428_50.05560946446206_14.33608558192138_tgLKS1EzWgD_B1HW0mPLsw"
+  },
+  {
+    "city": "OSL",
+    "route": "local",
+    "passed": false,
+    "src": "/media/data1/chenshunpeng1/datasets/gsv_cities/Images/OSL/OSL_0000407_2012_10_388_59.90869018018757_10.68279474509634_lyF2m7BJeokYhRqNwl53qg.jpg",
+    "gen": "/data_nvme/zhangjingyi/ReflectVPR/output_gsv23_100k/OSL/local/OSL_0000407_2012_10_388_59.90869018018757_10.68279474509634_lyF2m7BJeokYhRqNwl53qg__local_vehicle__final.jpg",
+    "stem": "OSL_0000407_2012_10_388_59.90869018018757_10.68279474509634_lyF2m7BJeokYhRqNwl53qg"
+  },
+  {
+    "city": "LosAngeles",
+    "route": "global",
+    "passed": true,
+    "src": "/media/data1/chenshunpeng1/datasets/gsv_cities/Images/LosAngeles/LosAngeles_0000036_2009_02_246_34.03312989461861_-118.2690285485886_tyLhKWjiRxbvL7nmdzplnQ.jpg",
+    "gen": "/data_nvme/zhangjingyi/ReflectVPR/output_gsv23_100k/LosAngeles/global/LosAngeles_0000036_2009_02_246_34.03312989461861_-118.2690285485886_tyLhKWjiRxbvL7nmdzplnQ__global_snow__final.jpg",
+    "stem": "LosAngeles_0000036_2009_02_246_34.03312989461861_-118.2690285485886_tyLhKWjiRxbvL7nmdzplnQ"
+  },
+  {
+    "city": "MexicoCity",
+    "route": "local",
+    "passed": true,
+    "src": "/media/data1/chenshunpeng1/datasets/gsv_cities/Images/MexicoCity/MexicoCity_0000042_2014_03_661_19.40038635114106_-99.1738644819874_1sOEq6EEGS0-zssf98dKwA.jpg",
+    "gen": "/data_nvme/zhangjingyi/ReflectVPR/output_gsv23_100k/MexicoCity/local/MexicoCity_0000042_2014_03_661_19.40038635114106_-99.1738644819874_1sOEq6EEGS0-zssf98dKwA__local_vehicle__final.jpg",
+    "stem": "MexicoCity_0000042_2014_03_661_19.40038635114106_-99.1738644819874_1sOEq6EEGS0-zssf98dKwA"
+  },
+  {
+    "city": "Bangkok",
+    "route": "global",
+    "passed": false,
+    "src": "/media/data1/chenshunpeng1/datasets/gsv_cities/Images/Bangkok/Bangkok_0000443_2020_09_235_13.72025417689497_100.4918146555746_tI1I5KN31lMoJNconVF4BA.jpg",
+    "gen": "/data_nvme/zhangjingyi/ReflectVPR/output_gsv23_100k/Bangkok/global/Bangkok_0000443_2020_09_235_13.72025417689497_100.4918146555746_tI1I5KN31lMoJNconVF4BA__global_fog__final.jpg",
+    "stem": "Bangkok_0000443_2020_09_235_13.72025417689497_100.4918146555746_tI1I5KN31lMoJNconVF4BA"
+  },
+  {
+    "city": "Barcelona",
+    "route": "global",
+    "passed": false,
+    "src": "/media/data1/chenshunpeng1/datasets/gsv_cities/Images/Barcelona/Barcelona_0000311_2018_05_346_41.36450849473108_2.163228154115314____m_XHRQdF1elTFYPNf-Q.jpg",
+    "gen": "/data_nvme/zhangjingyi/ReflectVPR/output_gsv23_100k/Barcelona/global/Barcelona_0000311_2018_05_346_41.36450849473108_2.163228154115314____m_XHRQdF1elTFYPNf-Q__global_night__final.jpg",
+    "stem": "Barcelona_0000311_2018_05_346_41.36450849473108_2.163228154115314____m_XHRQdF1elTFYPNf-Q"
+  }
+]

@@ -1,0 +1,267 @@
+[config] sample_num=50 seed=20260529
+[config] image_root=/media/data1/chenshunpeng1/datasets/gsv_cities/Images
+[config] cities=['London', 'Phoenix', 'Osaka', 'PRS']
+[config] output_root=/media/data/zhangjingyi/ReflectVPR/output_0604_v3
+[config] per-city outputs: decision.json reflect.json experience_bank.json under output_root/<city>/
+[config] experience_input_json=/media/data/zhangjingyi/ReflectVPR/experience_bank_v0.json
+[config] prompt_policy_version=20260604_scene_aware_global_routing_v1
+[services] start or reuse IC-Light and LightX2V services
+[iclight] port 8002 already open
+[lightx2v] port 8001 already open
+Generation service startup requested.
+[services] lightx2v ready on port 8001: model_loaded=true
+[services] iclight ready on port 8002: model_loaded=true
+[batch] cities=['London', 'Phoenix', 'Osaka', 'PRS'] selected_by_city={'London': 13, 'Phoenix': 13, 'Osaka': 12, 'PRS': 12}
+[batch] selected=50 completed=0 pending=50 output=/media/data/zhangjingyi/ReflectVPR/output_0604_v3
+Using a slow image processor as `use_fast` is unset and a slow processor was saved with this model. `use_fast=True` will be the default behavior in v4.52, even if the model was saved with a slow processor. This will result in minor differences in outputs. You'll still be able to use a slow processor with `use_fast=False`.
+[Agent] 初始化所有模块...
+[LLM] 真实客户端: base_url=https://yunwu.ai/v1, model=qwen3.5-35b-a3b
+[Agent] experience_bank_version=experience_bank_v1
+[ICLight] API模式: http://127.0.0.1:8002/generate
+[Lightx2v] API模式: http://127.0.0.1:8001/generate
+[Evaluator] Loading CLIP: openai/clip-vit-base-patch32
+[Evaluator] CLIP loaded on cuda
+[Agent] 初始化完成
+[1/50] run: Phoenix_0005641_2018_04_044_33.48028926012291_-112.0489897649071_CGGXnGdeJXQOmbKaEQbJjQ.jpg
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[2/50] run: Osaka_0001130_2015_04_385_34.66330828288437_135.4830709252801_jTXhZviEZ5GQgJm7QZ-RPA.jpg
+[Agent] route balance: local -> dual occlusion=vehicle->vehicle deficit={'skip': -0.19999999999999996, 'global': 0.6, 'dual': 0.3, 'local': 0.3, 'lightx2v': 0.6} reason=legal_occlusion_surface; choose_lightx2v; occlusion=vehicle
+[Agent] 路由: dual | 模型: LightX2V-Dual | 风险: 0 []
+[Agent] 路由: dual | 模型: LightX2V-Dual | 风险: 0 []
+[Agent] Osaka_0001130_2015_04_385_34.66330828288437_135.4830709252801_jTXhZviEZ5GQgJm7QZ-RPA.jpg round=1/1 route=dual
+[Evaluator] Loading matcher: superpoint-lightglue on cuda
+  s_geo=0.974 s_div=0.215 passed=True
+[3/50] run: London_0006193_2015_10_170_51.51634172889472_-0.1803676461755845_RK5qk8ITVXAbVBCvYpvBwg.jpg
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[4/50] run: Phoenix_0004855_2016_08_335_33.47247551240992_-112.0670793934642_1vSazUwp80FJ_MjFzrdQFw.jpg
+[Agent] 路由: local | 模型: LightX2V-Local | 风险: 0 []
+[Agent] 路由: local | 模型: LightX2V-Local | 风险: 0 []
+[Agent] Phoenix_0004855_2016_08_335_33.47247551240992_-112.0670793934642_1vSazUwp80FJ_MjFzrdQFw.jpg round=1/1 route=local
+  s_geo=0.996 s_div=0.081 passed=False
+[5/50] run: PRS_0003543_2017_09_254_48.87539284464024_2.27736830936349_G8ekHssCLtVyqwApW50Blg.jpg
+[Agent] route balance: local -> dual occlusion=vehicle->vehicle deficit={'skip': 0.0, 'global': 1.5, 'dual': -0.25, 'local': -0.25, 'lightx2v': -0.5} reason=legal_occlusion_surface; choose_lightx2v; occlusion=vehicle
+[Agent] 路由: dual | 模型: LightX2V-Dual | 风险: 0 []
+[Agent] 路由: dual | 模型: LightX2V-Dual | 风险: 0 []
+[Agent] PRS_0003543_2017_09_254_48.87539284464024_2.27736830936349_G8ekHssCLtVyqwApW50Blg.jpg round=1/1 route=dual
+  s_geo=0.824 s_div=0.435 passed=True
+[6/50] run: Phoenix_0002309_2014_04_295_33.4463464930989_-112.1141451520668_dE9Y06ndxoio9SgXwrIMmg.jpg
+[Agent] route balance: dual -> local occlusion=person->person deficit={'skip': 0.40000000000000036, 'global': 1.7999999999999998, 'dual': -1.1, 'local': -0.10000000000000009, 'lightx2v': -1.2000000000000002} reason=legal_occlusion_surface; local_deficit_larger; occlusion=person
+[Agent] 路由: local | 模型: LightX2V-Local | 风险: 0 []
+[Agent] 路由: local | 模型: LightX2V-Local | 风险: 0 []
+[Agent] Phoenix_0002309_2014_04_295_33.4463464930989_-112.1141451520668_dE9Y06ndxoio9SgXwrIMmg.jpg round=1/1 route=local
+  s_geo=0.995 s_div=0.075 passed=False
+[7/50] run: PRS_0004541_2017_08_504_48.89495631177452_2.299209361119033_u5VfcNX87YsHPjBIEg_98w.jpg
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[8/50] run: Osaka_0001352_2016_04_246_34.66654247183451_135.5231305133047_7TDCM1pdzLWBo1-Az8DEeg.jpg
+[Agent] route balance: local -> dual occlusion=vehicle->vehicle deficit={'skip': 0.20000000000000018, 'global': 2.4, 'dual': -0.8, 'local': -0.8, 'lightx2v': -1.6} reason=legal_occlusion_surface; choose_lightx2v; occlusion=vehicle
+[Agent] 路由: dual | 模型: LightX2V-Dual | 风险: 0 []
+[Agent] 路由: dual | 模型: LightX2V-Dual | 风险: 0 []
+[Agent] Osaka_0001352_2016_04_246_34.66654247183451_135.5231305133047_7TDCM1pdzLWBo1-Az8DEeg.jpg round=1/1 route=dual
+  s_geo=0.937 s_div=0.259 passed=True
+[9/50] run: Osaka_0002557_2019_08_279_34.68738793873183_135.4921747840146_QkCC_tPMvHPIOYm5OEw69A.jpg
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[10/50] run: Osaka_0003143_2016_07_450_34.69735887800296_135.4889047375416_ZiD7eP1R05QO9LgNhvRiHg.jpg
+[Agent] VLM route JSON parse failed attempt=1/3 file=Osaka_0003143_2016_07_450_34.69735887800296_135.4889047375416_ZiD7eP1R05QO9LgNhvRiHg.jpg error=empty VLM response: line 1 column 1 (char 0) response_preview=''
+[Agent] 路由: local | 模型: LightX2V-Local | 风险: 0 []
+[Agent] 路由: local | 模型: LightX2V-Local | 风险: 0 []
+[Agent] Osaka_0003143_2016_07_450_34.69735887800296_135.4889047375416_ZiD7eP1R05QO9LgNhvRiHg.jpg round=1/1 route=local
+  s_geo=0.993 s_div=0.067 passed=False
+[11/50] run: London_0005106_2017_09_070_51.51084227166865_-0.1325323387194748_PJQRHEzTQaOy40GF2M0j_w.jpg
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[12/50] run: Osaka_0000764_2013_10_465_34.65630880480926_135.5271340754628_jLa0_Ji2-MZbrLEHsFDgGQ.jpg
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[13/50] run: PRS_0004348_2013_07_481_48.8915249324856_2.267189106245078_qwgnCuJ_kBWu9SXF7qJHig.jpg
+[Agent] route balance: local -> dual occlusion=vehicle->vehicle deficit={'skip': -0.7999999999999998, 'global': 3.9, 'dual': -1.05, 'local': -1.05, 'lightx2v': -2.1} reason=legal_occlusion_surface; choose_lightx2v; occlusion=vehicle
+[Agent] 路由: dual | 模型: LightX2V-Dual | 风险: 0 []
+[Agent] 路由: dual | 模型: LightX2V-Dual | 风险: 0 []
+[Agent] PRS_0004348_2013_07_481_48.8915249324856_2.267189106245078_qwgnCuJ_kBWu9SXF7qJHig.jpg round=1/1 route=dual
+  s_geo=0.981 s_div=0.290 passed=True
+[14/50] run: Osaka_0001665_2020_07_391_34.67237235838362_135.4840958278812_Et9Z0BIo5kmVXfSNnStWFA.jpg
+[Agent] 路由: local | 模型: LightX2V-Local | 风险: 0 []
+[Agent] 路由: local | 模型: LightX2V-Local | 风险: 0 []
+[Agent] Osaka_0001665_2020_07_391_34.67237235838362_135.4840958278812_Et9Z0BIo5kmVXfSNnStWFA.jpg round=1/1 route=local
+  s_geo=0.986 s_div=0.097 passed=False
+[15/50] run: London_0006869_2016_07_086_51.51909699385667_-0.1118008797089737_53I8PVWDk1w231egMzlANA.jpg
+[Agent] 路由: skip | 模型: None | 风险: 3 ['occlusion_implausible']
+[Agent] 路由: skip | 模型: None | 风险: 3 ['occlusion_implausible']
+[16/50] run: Phoenix_0005286_2020_12_080_33.47724664182568_-112.1171435058236_-mLe8xdx5JdXxAOVklpm_Q.jpg
+[Agent] route balance: local -> dual occlusion=vehicle->vehicle deficit={'skip': -0.5999999999999996, 'global': 4.8, 'dual': -1.6, 'local': -1.6, 'lightx2v': -3.2} reason=legal_occlusion_surface; choose_lightx2v; occlusion=vehicle
+[Agent] 路由: dual | 模型: LightX2V-Dual | 风险: 0 []
+[Agent] 路由: dual | 模型: LightX2V-Dual | 风险: 0 []
+[Agent] Phoenix_0005286_2020_12_080_33.47724664182568_-112.1171435058236_-mLe8xdx5JdXxAOVklpm_Q.jpg round=1/1 route=dual
+  s_geo=0.974 s_div=0.255 passed=True
+[17/50] run: Osaka_0000780_2020_10_458_34.65742971969346_135.4849293452968_1weJfoWlwR0gpmlZEcLPLA.jpg
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[18/50] run: PRS_0001659_2015_06_360_48.8353958703393_2.329369788163895_PcTh1iDIu_nh60xHSw8wlw.jpg
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[19/50] run: Osaka_0002692_2019_09_492_34.68948147909411_135.5080761040459_xHmnoI2Y3eVTtAv19-ygAg.jpg
+[Agent] route balance: dual -> local occlusion=vehicle->vehicle deficit={'skip': -1.3999999999999995, 'global': 5.7, 'dual': -2.15, 'local': -1.15, 'lightx2v': -3.3} reason=legal_occlusion_surface; local_deficit_larger; occlusion=vehicle
+[Agent] 路由: local | 模型: LightX2V-Local | 风险: 0 []
+[Agent] 路由: local | 模型: LightX2V-Local | 风险: 0 []
+[Agent] Osaka_0002692_2019_09_492_34.68948147909411_135.5080761040459_xHmnoI2Y3eVTtAv19-ygAg.jpg round=1/1 route=local
+  s_geo=0.989 s_div=0.086 passed=False
+[20/50] run: PRS_0000169_2012_07_226_48.79951652003073_2.449582823043812_VfZ9tqx5d15Uhih2OzQsLw.jpg
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[21/50] run: Phoenix_0003155_2011_07_082_33.45427173822405_-112.0389939412453_kZUw8SPz9VRLFzQZIMW8Gg.jpg
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[22/50] run: Phoenix_0002427_2020_02_019_33.44700692374173_-112.0951136299802_sCXiygKo9F8T-PMkbHkwIw.jpg
+[Agent] 路由: dual | 模型: LightX2V-Dual | 风险: 0 []
+[Agent] 路由: dual | 模型: LightX2V-Dual | 风险: 0 []
+[Agent] Phoenix_0002427_2020_02_019_33.44700692374173_-112.0951136299802_sCXiygKo9F8T-PMkbHkwIw.jpg round=1/1 route=dual
+  s_geo=0.995 s_div=0.156 passed=False
+[23/50] run: Osaka_0001362_2018_10_581_34.66736318919321_135.4720860531771_uQnfsM0MO-BrWQJ0FFBtlA.jpg
+[Agent] 路由: global | 模型: IC-Light | 风险: 0 []
+[Agent] 路由: global | 模型: IC-Light | 风险: 0 []
+[Agent] Osaka_0001362_2018_10_581_34.66736318919321_135.4720860531771_uQnfsM0MO-BrWQJ0FFBtlA.jpg round=1/1 route=global
+  s_geo=0.769 s_div=0.200 passed=False
+[24/50] run: PRS_0004550_2019_04_442_48.89572937757531_2.325551110150633_UwV7YFw__JazJI22t3DF8Q.jpg
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[25/50] run: PRS_0000191_2015_05_649_48.80171199380138_2.295211969790074_JIE5IF59-jV5vLi64c34Zg.jpg
+[Agent] route balance: dual -> local occlusion=vehicle->vehicle deficit={'skip': -2.0, 'global': 6.5, 'dual': -2.25, 'local': -1.25, 'lightx2v': -3.5} reason=legal_occlusion_surface; local_deficit_larger; occlusion=vehicle
+[Agent] 路由: local | 模型: LightX2V-Local | 风险: 0 []
+[Agent] 路由: local | 模型: LightX2V-Local | 风险: 0 []
+[Agent] PRS_0000191_2015_05_649_48.80171199380138_2.295211969790074_JIE5IF59-jV5vLi64c34Zg.jpg round=1/1 route=local
+  s_geo=0.992 s_div=0.036 passed=False
+[26/50] run: London_0005715_2008_07_313_51.51348823263362_-0.1125543660196361_49bF87Lwt1tPuEg50_i3WQ.jpg
+[Agent] route balance: local -> dual occlusion=vehicle->vehicle deficit={'skip': -1.5999999999999996, 'global': 6.8, 'dual': -2.1, 'local': -2.1, 'lightx2v': -4.2} reason=legal_occlusion_surface; choose_lightx2v; occlusion=vehicle
+[Agent] 路由: dual | 模型: LightX2V-Dual | 风险: 0 []
+[Agent] 路由: dual | 模型: LightX2V-Dual | 风险: 0 []
+[Agent] London_0005715_2008_07_313_51.51348823263362_-0.1125543660196361_49bF87Lwt1tPuEg50_i3WQ.jpg round=1/1 route=dual
+  s_geo=0.998 s_div=0.316 passed=True
+[27/50] run: London_0000673_2019_03_215_51.48902542122342_-0.1127046220043871_NzGQbO3Wh4YPF-PfKthFKQ.jpg
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[28/50] run: Phoenix_0000477_2008_03_211_33.4263074178464_-112.0290304979636_S6-wkcERRZRmA3_tnfMaLQ.jpg
+[Agent] 路由: local | 模型: LightX2V-Local | 风险: 0 []
+[Agent] 路由: local | 模型: LightX2V-Local | 风险: 0 []
+[Agent] Phoenix_0000477_2008_03_211_33.4263074178464_-112.0290304979636_S6-wkcERRZRmA3_tnfMaLQ.jpg round=1/1 route=local
+  s_geo=0.962 s_div=0.325 passed=True
+[29/50] run: Phoenix_0004754_2018_05_174_33.47110204640131_-112.0720444358193_ke9H1UuGil9yq0ZV7ahYaw.jpg
+[Agent] route balance: local -> dual occlusion=vehicle->vehicle deficit={'skip': -1.3999999999999986, 'global': 7.699999999999999, 'dual': -2.6500000000000004, 'local': -2.6500000000000004, 'lightx2v': -5.300000000000001} reason=legal_occlusion_surface; choose_lightx2v; occlusion=vehicle
+[Agent] 路由: dual | 模型: LightX2V-Dual | 风险: 0 []
+[Agent] 路由: dual | 模型: LightX2V-Dual | 风险: 0 []
+[Agent] Phoenix_0004754_2018_05_174_33.47110204640131_-112.0720444358193_ke9H1UuGil9yq0ZV7ahYaw.jpg round=1/1 route=dual
+  s_geo=0.296 s_div=0.341 passed=False
+[30/50] run: London_0000538_2018_01_077_51.4881379500225_-0.1060738376984482_h4OEO1tIdafBKWN6djPJ-Q.jpg
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[31/50] run: London_0006586_2008_07_344_51.51767151838224_-0.1050077663357065_FJmu9Ce4aqYKnhpVaFQfMg.jpg
+[Agent] 路由: local | 模型: LightX2V-Local | 风险: 0 []
+[Agent] 路由: local | 模型: LightX2V-Local | 风险: 0 []
+[Agent] London_0006586_2008_07_344_51.51767151838224_-0.1050077663357065_FJmu9Ce4aqYKnhpVaFQfMg.jpg round=1/1 route=local
+  s_geo=1.000 s_div=0.109 passed=False
+[32/50] run: London_0002142_2014_05_235_51.49591798405022_-0.0927143720868912_P1MRdfHE-Kc9Y92eNz0wPg.jpg
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[33/50] run: Osaka_0002268_2018_10_399_34.68228110187216_135.4941669065026_k8-QyiamROj54FvJgLegvw.jpg
+[Agent] route balance: local -> dual occlusion=vehicle->vehicle deficit={'skip': -1.799999999999999, 'global': 8.9, 'dual': -3.05, 'local': -3.05, 'lightx2v': -6.1} reason=legal_occlusion_surface; choose_lightx2v; occlusion=vehicle
+[Agent] 路由: dual | 模型: LightX2V-Dual | 风险: 0 []
+[Agent] 路由: dual | 模型: LightX2V-Dual | 风险: 0 []
+[Agent] Osaka_0002268_2018_10_399_34.68228110187216_135.4941669065026_k8-QyiamROj54FvJgLegvw.jpg round=1/1 route=dual
+  s_geo=0.959 s_div=0.296 passed=True
+[34/50] run: Osaka_0002547_2013_09_292_34.68727656840866_135.4820237122262_7VSxXkQVT2lOlz9Fjbinvg.jpg
+[Agent] 路由: local | 模型: LightX2V-Local | 风险: 0 []
+[Agent] 路由: local | 模型: LightX2V-Local | 风险: 0 []
+[Agent] Osaka_0002547_2013_09_292_34.68727656840866_135.4820237122262_7VSxXkQVT2lOlz9Fjbinvg.jpg round=1/1 route=local
+  s_geo=0.981 s_div=0.091 passed=False
+[35/50] run: PRS_0001198_2019_07_402_48.82332506111933_2.311418123563746_YBKLo_RzoIM7f5j9ao4F3Q.jpg
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[36/50] run: Phoenix_0005256_2011_04_241_33.47621378342337_-112.0499010110819_w-361guNSO7NR8IFaC7eRA.jpg
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[37/50] run: Phoenix_0001627_2014_05_148_33.43828704210751_-112.0345609159245_vlFSmxKTheK-vRCHWuSTng.jpg
+[Agent] route balance: local -> dual occlusion=vehicle->vehicle deficit={'skip': -2.1999999999999993, 'global': 10.1, 'dual': -3.45, 'local': -3.45, 'lightx2v': -6.9} reason=legal_occlusion_surface; choose_lightx2v; occlusion=vehicle
+[Agent] 路由: dual | 模型: LightX2V-Dual | 风险: 0 []
+[Agent] 路由: dual | 模型: LightX2V-Dual | 风险: 0 []
+[Agent] Phoenix_0001627_2014_05_148_33.43828704210751_-112.0345609159245_vlFSmxKTheK-vRCHWuSTng.jpg round=1/1 route=dual
+  s_geo=0.988 s_div=0.308 passed=True
+[38/50] run: Phoenix_0002514_2018_05_260_33.44808955148218_-112.1040384480347_cuRBcq-j_PpRrOMeIOuvvg.jpg
+[Agent] route balance: dual -> local occlusion=vehicle->vehicle deficit={'skip': -1.799999999999999, 'global': 10.4, 'dual': -4.3, 'local': -3.3, 'lightx2v': -7.6} reason=legal_occlusion_surface; local_deficit_larger; occlusion=vehicle
+[Agent] 路由: local | 模型: LightX2V-Local | 风险: 0 []
+[Agent] 路由: local | 模型: LightX2V-Local | 风险: 0 []
+[Agent] Phoenix_0002514_2018_05_260_33.44808955148218_-112.1040384480347_cuRBcq-j_PpRrOMeIOuvvg.jpg round=1/1 route=local
+  s_geo=0.989 s_div=0.204 passed=True
+[39/50] run: PRS_0003661_2019_07_537_48.87756557758683_2.30111086419344_rn-h22PHsgbEu-_IHT1fqA.jpg
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[40/50] run: London_0000526_2014_06_123_51.48824487763708_-0.1147064225762143_C1XBPo9FS9VfJQCTIDqXWw.jpg
+[Agent] route balance: local -> dual occlusion=vehicle->vehicle deficit={'skip': -2.0, 'global': 11.0, 'dual': -4.0, 'local': -4.0, 'lightx2v': -8.0} reason=legal_occlusion_surface; choose_lightx2v; occlusion=vehicle
+[Agent] 路由: dual | 模型: LightX2V-Dual | 风险: 0 []
+[Agent] 路由: dual | 模型: LightX2V-Dual | 风险: 0 []
+[Agent] London_0000526_2014_06_123_51.48824487763708_-0.1147064225762143_C1XBPo9FS9VfJQCTIDqXWw.jpg round=1/1 route=dual
+  s_geo=0.995 s_div=0.311 passed=True
+[41/50] run: London_0000021_2017_03_249_51.48606448482732_-0.1657401739175414_6Hat_Cq90DBbRSKQjJ0dOA.jpg
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[42/50] run: London_0007110_2014_07_352_51.52052598977507_-0.1451958289721673_tQvyaaSVfxMALhPIajikPA.jpg
+[Agent] route balance: dual -> local occlusion=vehicle->vehicle deficit={'skip': -2.1999999999999993, 'global': 11.6, 'dual': -4.7, 'local': -3.7, 'lightx2v': -8.4} reason=legal_occlusion_surface; local_deficit_larger; occlusion=vehicle
+[Agent] 路由: local | 模型: LightX2V-Local | 风险: 0 []
+[Agent] 路由: local | 模型: LightX2V-Local | 风险: 0 []
+[Agent] London_0007110_2014_07_352_51.52052598977507_-0.1451958289721673_tQvyaaSVfxMALhPIajikPA.jpg round=1/1 route=local
+  s_geo=1.000 s_div=0.054 passed=False
+[43/50] run: PRS_0003082_2019_05_505_48.86545100452658_2.37749727232558_bCtUWvJsGbVIuadEgpW7Sg.jpg
+[Agent] 路由: dual | 模型: LightX2V-Dual | 风险: 0 []
+[Agent] 路由: dual | 模型: LightX2V-Dual | 风险: 0 []
+[Agent] PRS_0003082_2019_05_505_48.86545100452658_2.37749727232558_bCtUWvJsGbVIuadEgpW7Sg.jpg round=1/1 route=dual
+  s_geo=0.980 s_div=0.149 passed=False
+[44/50] run: Osaka_0000485_2020_10_572_34.65191060381633_135.4822174326067_8rQJdPT7TTmpSsDqApekbQ.jpg
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[45/50] run: Phoenix_0004086_2009_03_264_33.46425580089416_-112.0712656587467_Ll35QExQWilovl8k1ms77w.jpg
+[Agent] 路由: skip | 模型: None | 风险: 3 ['occlusion_implausible']
+[Agent] 路由: skip | 模型: None | 风险: 3 ['occlusion_implausible']
+[46/50] run: Phoenix_0006007_2020_12_096_33.4842794053675_-112.0672680623156_NlwJO8B7K7HjNlsa9KI1wA.jpg
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[47/50] run: PRS_0000524_2012_08_331_48.80932103805039_2.28322530333761_L0wzP7_YBCN2-ox3-hvMCA.jpg
+[Agent] route balance: dual -> local occlusion=vehicle->vehicle deficit={'skip': -3.1999999999999993, 'global': 13.1, 'dual': -4.95, 'local': -3.95, 'lightx2v': -8.9} reason=legal_occlusion_surface; local_deficit_larger; occlusion=vehicle
+[Agent] 路由: local | 模型: LightX2V-Local | 风险: 0 []
+[Agent] 路由: local | 模型: LightX2V-Local | 风险: 0 []
+[Agent] PRS_0000524_2012_08_331_48.80932103805039_2.28322530333761_L0wzP7_YBCN2-ox3-hvMCA.jpg round=1/1 route=local
+  s_geo=0.986 s_div=0.074 passed=False
+[48/50] run: London_0004089_2017_04_160_51.50577171339938_-0.1405994505157019_XlEGaqJ3L5o2V_i5XXx75w.jpg
+[Agent] 路由: local | 模型: LightX2V-Local | 风险: 0 []
+[Agent] 路由: local | 模型: LightX2V-Local | 风险: 0 []
+[Agent] London_0004089_2017_04_160_51.50577171339938_-0.1405994505157019_XlEGaqJ3L5o2V_i5XXx75w.jpg round=1/1 route=local
+  s_geo=1.000 s_div=0.070 passed=False
+[49/50] run: PRS_0001854_2019_06_425_48.83942216163271_2.408881370245505_D43k4mo2aX3AR_RH_igo4g.jpg
+[Agent] VLM route JSON parse failed attempt=1/3 file=PRS_0001854_2019_06_425_48.83942216163271_2.408881370245505_D43k4mo2aX3AR_RH_igo4g.jpg error=empty VLM response: line 1 column 1 (char 0) response_preview=''
+[Agent] 路由: local | 模型: LightX2V-Local | 风险: 0 []
+[Agent] 路由: local | 模型: LightX2V-Local | 风险: 0 []
+[Agent] PRS_0001854_2019_06_425_48.83942216163271_2.408881370245505_D43k4mo2aX3AR_RH_igo4g.jpg round=1/1 route=local
+  s_geo=0.983 s_div=0.090 passed=False
+[50/50] run: London_0008169_2019_05_227_51.52518066816186_-0.1079838230975761_9oP4QkIAr1dD9MhtJv1MQA.jpg
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[Agent] 路由: skip | 模型: None | 风险: 0 []
+[resume] loaded 13 records from /media/data/zhangjingyi/ReflectVPR/output_0604_v3/London/reflect.json
+[resume] loaded 13 records from /media/data/zhangjingyi/ReflectVPR/output_0604_v3/Phoenix/reflect.json
+[resume] loaded 12 records from /media/data/zhangjingyi/ReflectVPR/output_0604_v3/Osaka/reflect.json
+[resume] loaded 12 records from /media/data/zhangjingyi/ReflectVPR/output_0604_v3/PRS/reflect.json
+[summary] route counts:
+  skip: 23
+  global: 1
+  local: 14
+  dual: 12
+[summary] lightx2v count = local + dual: 26
+[summary] weather counts for global + dual: {'rain': 10, 'overcast': 3}
+[summary] occlusion counts for local + dual: {'vehicle': 23, 'person': 3}
+[summary] vehicle/person ratio: 23/3
+[summary] skip reasons top-k: [('no_legal_vehicle_or_person_surface_for_local_occlusion', 4), ('Close-up building/detail fragment; storefront crop; main structure fills image; no clear sidewalk/road surface visible.', 1), ('Close-up building facade, main structure fills image, no clear street/road space for vehicle occlusion.', 1), ('Close-up building/detail fragment, no clear street space, main structure fills the image.', 1), ('Close-up building facade, main structure fills image, no clear road/street space.', 1)]
+[summary] fallback/downgrade counts: {}
+[mine] London experience_bank=/media/data/zhangjingyi/ReflectVPR/output_0604_v3/London/experience_bank.json
+[mine] Phoenix experience_bank=/media/data/zhangjingyi/ReflectVPR/output_0604_v3/Phoenix/experience_bank.json
+[mine] Osaka experience_bank=/media/data/zhangjingyi/ReflectVPR/output_0604_v3/Osaka/experience_bank.json
+[mine] PRS experience_bank=/media/data/zhangjingyi/ReflectVPR/output_0604_v3/PRS/experience_bank.json
+Done. output=/media/data/zhangjingyi/ReflectVPR/output_0604_v3

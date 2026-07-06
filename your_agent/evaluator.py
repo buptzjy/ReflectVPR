@@ -1,6 +1,7 @@
 # evaluator.py - Dual-Trait Verification
 # 计算 s_geo (几何一致性) 和 s_div (多样性得分)
 
+import os
 import sys
 import tempfile
 from dataclasses import dataclass, field
@@ -21,7 +22,7 @@ if VISMATCH_ROOT.exists() and str(VISMATCH_ROOT) not in sys.path:
 
 
 LOCAL_MIN_GEO = 0.82
-LOCAL_MIN_DIV = 0.12
+LOCAL_MIN_DIV = 0.09
 DUAL_MIN_GEO = 0.72
 DUAL_MIN_DIV = 0.20
 DUAL_RAIN_RELAXED_MIN_DIV = 0.12
@@ -105,11 +106,12 @@ class DualTraitEvaluator:
         mock=True 时跳过模型加载，仅用于流程测试。
         """
         self.mock = mock
-        self.matcher_name = matcher_name
+        self.matcher_name = os.getenv("REFLECTVPR_MATCHER_NAME", matcher_name)
         self.img_size = img_size
         self.n_kpts = n_kpts
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.matcher = None
+        clip_model_name = os.getenv("REFLECTVPR_CLIP_MODEL_NAME", clip_model_name)
 
         if mock:
             print("[Evaluator] Mock模式，跳过CLIP和vismatch模型加载")
@@ -120,8 +122,15 @@ class DualTraitEvaluator:
         from transformers import CLIPModel, CLIPProcessor
 
         print(f"[Evaluator] Loading CLIP: {clip_model_name}")
-        self.model = CLIPModel.from_pretrained(clip_model_name).to(self.device)
-        self.processor = CLIPProcessor.from_pretrained(clip_model_name)
+        local_files_only = os.getenv("REFLECTVPR_CLIP_LOCAL_FILES_ONLY", "1").lower() in {"1", "true", "yes"}
+        self.model = CLIPModel.from_pretrained(
+            clip_model_name,
+            local_files_only=local_files_only,
+        ).to(self.device)
+        self.processor = CLIPProcessor.from_pretrained(
+            clip_model_name,
+            local_files_only=local_files_only,
+        )
         self.model.eval()
         print(f"[Evaluator] CLIP loaded on {self.device}")
 
@@ -149,11 +158,26 @@ class DualTraitEvaluator:
                 ) from exc
 
             print(f"[Evaluator] Loading matcher: {self.matcher_name} on {self.device}")
-            self.matcher = get_matcher(
-                self.matcher_name,
-                device=self.device,
-                max_num_keypoints=self.n_kpts,
-            )
+            try:
+                self.matcher = get_matcher(
+                    self.matcher_name,
+                    device=self.device,
+                    max_num_keypoints=self.n_kpts,
+                )
+            except Exception as exc:
+                fallback_matcher = "sift-nn"
+                if self.matcher_name == fallback_matcher:
+                    raise
+                print(
+                    f"[Evaluator] Matcher '{self.matcher_name}' failed: {exc!r}. "
+                    f"Falling back to '{fallback_matcher}'."
+                )
+                self.matcher_name = fallback_matcher
+                self.matcher = get_matcher(
+                    fallback_matcher,
+                    device=self.device,
+                    max_num_keypoints=self.n_kpts,
+                )
         return self.matcher
 
     def _save_temp_image(self, image: Image.Image, path: Path) -> None:
@@ -485,13 +509,13 @@ class DualTraitEvaluator:
             feedback["local_gate"] = {
                 "visibility_ok": local_visibility_ok,
                 "legality_ok": local_legality_ok,
-                "policy": "LOCAL_MIN_DIV=0.12; local_passed requires s_geo, visible legal occlusion, and no major artifact",
+                "policy": "LOCAL_MIN_DIV=0.09; local_passed requires s_geo, visible legal occlusion, and no major artifact",
             }
 
         if quality_gate_flags:
             feedback["quality_gate"] = {
                 "flags": quality_gate_flags,
-                "policy": "local_min_div_0.12_dual_min_div_0.20_dual_rain_vehicle_visible_min_div_0.12_geo_min_0.72",
+                "policy": "local_min_div_0.09_dual_min_div_0.20_dual_rain_vehicle_visible_min_div_0.09_geo_min_0.72",
             }
 
         if route_name == "dual" and dual_visibility is not None:

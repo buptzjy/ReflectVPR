@@ -121,7 +121,8 @@ class ICLightGenerator:
             ]:
                 if key in kwargs:
                     payload[key] = kwargs[key]
-            resp = self._session.post(self.api_url, json=payload, timeout=300)
+            request_timeout = float(os.getenv("ICLIGHT_API_TIMEOUT", "300"))
+            resp = self._session.post(self.api_url, json=payload, timeout=request_timeout)
             resp.raise_for_status()
             data = resp.json()
             result_path = data.get("result_path")
