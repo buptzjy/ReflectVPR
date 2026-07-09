@@ -24,6 +24,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--top-k", type=int, default=20)
     parser.add_argument("--passed-only", action="store_true", default=True)
     parser.add_argument("--max-distance", type=float, default=1.31)
+    parser.add_argument("--effective-min-distance", type=float, default=1.08)
+    parser.add_argument("--preferred-min-distance", type=float, default=1.14)
+    parser.add_argument("--real-real-eps", type=float, default=0.02)
     parser.add_argument("--reference-summary", type=Path, default=DEFAULT_REFERENCE_SUMMARY)
     return parser.parse_args()
 
@@ -41,6 +44,13 @@ def load_records(output_root: Path) -> dict[str, dict]:
             output_path = record.get("output_path")
             if output_path:
                 records[str(Path(output_path).resolve())] = record
+            for candidate in record.get("training_candidates", []) or []:
+                candidate_record = dict(record)
+                candidate_record.update(candidate)
+                candidate_record["parent_output_path"] = record.get("output_path")
+                candidate_path = candidate_record.get("output_path")
+                if candidate_path:
+                    records[str(Path(candidate_path).resolve())] = candidate_record
     return records
 
 
@@ -70,6 +80,16 @@ def classify(distance: float, thresholds: dict[str, float]) -> str:
 
 def distance_from_row(row: dict) -> float:
     return float(row.get("d_real_syn_l2") or row.get("d_pos_anchor_real_syn_l2"))
+
+
+def real_real_distance_from_row(row: dict) -> float | None:
+    for key in ("d_real_real_l2", "d_pos_anchor_real_real_l2", "d_anchor_positive_real_l2"):
+        if row.get(key):
+            try:
+                return float(row[key])
+            except ValueError:
+                pass
+    return None
 
 
 def fit_image(image: Image.Image, width: int, height: int) -> Image.Image:
@@ -122,21 +142,40 @@ def main() -> None:
     record_by_final = load_records(args.output_root)
     thresholds = load_thresholds(args.reference_summary)
     rows: list[dict] = []
+    candidate_rows = 0
+    passed_rows = 0
     with args.pair_metrics.open(newline="", encoding="utf-8") as handle:
         for row in csv.DictReader(handle):
+            candidate_rows += 1
             generated = str(Path(row["positive_syn"]).resolve())
             record = record_by_final.get(generated, {})
             if args.passed_only and not bool(record.get("passed")):
                 continue
+            passed_rows += 1
             distance = distance_from_row(row)
             category = classify(distance, thresholds)
-            if distance > args.max_distance:
+            real_real_distance = real_real_distance_from_row(row)
+            clears_real_real_gate = (
+                real_real_distance is None
+                or distance >= real_real_distance - args.real_real_eps
+            )
+            in_effective_band = args.effective_min_distance <= distance <= args.max_distance
+            in_preferred_band = args.preferred_min_distance <= distance <= args.max_distance
+            if not clears_real_real_gate or not in_effective_band:
                 continue
             row["distance"] = distance
+            row["real_real_distance"] = real_real_distance
             row["category"] = category
+            row["clears_real_real_gate"] = clears_real_real_gate
+            row["in_effective_band"] = in_effective_band
+            row["in_preferred_band"] = in_preferred_band
             rows.append(row)
 
-    rows = sorted(rows, key=lambda row: row["distance"], reverse=True)[: args.top_k]
+    rows = sorted(
+        rows,
+        key=lambda row: (bool(row["in_preferred_band"]), row["distance"]),
+        reverse=True,
+    )[: args.top_k]
 
     args.image_output_dir.mkdir(parents=True, exist_ok=True)
     for old in args.image_output_dir.glob("*.jpg"):
@@ -154,6 +193,9 @@ def main() -> None:
                 "rank": index,
                 "category": row["category"],
                 "distance": row["distance"],
+                "real_real_distance": row.get("real_real_distance"),
+                "clears_real_real_gate": bool(row.get("clears_real_real_gate")),
+                "in_preferred_band": bool(row.get("in_preferred_band")),
                 "passed": bool(record.get("passed")),
                 "s_geo": record.get("s_geo"),
                 "s_div": record.get("s_div"),
@@ -166,8 +208,16 @@ def main() -> None:
         "selected_top_k": len(rows),
         "requested_top_k": args.top_k,
         "passed_only": bool(args.passed_only),
+        "effective_sample_definition": "passed=true and ImAge d(real,syn) clears real-real-eps gate and falls in effective distance band",
+        "effective_distance_band": [args.effective_min_distance, args.max_distance],
+        "preferred_distance_band": [args.preferred_min_distance, args.max_distance],
+        "real_real_eps": args.real_real_eps,
         "max_distance": args.max_distance,
+        "generated_candidates": candidate_rows,
+        "passed_candidates": passed_rows,
+        "effective_candidates": len(rows),
         "category_counts": dict(Counter(row["category"] for row in rows)),
+        "effective_utilization": (len(rows) / candidate_rows) if candidate_rows else 0.0,
         "comparison_pairs": comparison_pairs,
         "contact_sheet": str(args.contact_sheet),
         "images_dir": str(args.image_output_dir),

@@ -10,7 +10,7 @@ from dataclasses import dataclass
 WEATHERS = {"rain", "snow", "night", "overcast", "fog", "rainy_night"}
 OCCLUSIONS = {"person", "vehicle"}
 OCCLUSION_STRENGTH_DEBUG = os.getenv("REFLECTVPR_OCCLUSION_STRENGTH_DEBUG", "")
-DUAL_PROMPT_STRATEGY = os.getenv("REFLECTVPR_DUAL_PROMPT_STRATEGY", "default").strip().lower()
+DUAL_PROMPT_STRATEGY = os.getenv("REFLECTVPR_DUAL_PROMPT_STRATEGY", "dual_hard_v4").strip().lower()
 PROMPT_POLICY_VERSION = f"20260703_dual_strategy_{DUAL_PROMPT_STRATEGY or 'default'}"
 
 VEHICLE_SURFACE_TERMS = (

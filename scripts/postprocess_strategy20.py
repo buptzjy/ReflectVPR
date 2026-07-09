@@ -35,9 +35,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--passed-only",
         action="store_true",
-        default=os.getenv("REFLECTVPR_SELECT_PASSED_ONLY", "0").lower() in {"1", "true", "yes"},
+        default=os.getenv("REFLECTVPR_SELECT_PASSED_ONLY", "1").lower() in {"1", "true", "yes"},
         help="Only collect generated final images whose reflect record has passed=true.",
     )
+    parser.add_argument("--effective-min-distance", type=float, default=float(os.getenv("REFLECTVPR_EFFECTIVE_MIN_DISTANCE", "1.08")))
+    parser.add_argument("--preferred-min-distance", type=float, default=float(os.getenv("REFLECTVPR_PREFERRED_MIN_DISTANCE", "1.14")))
+    parser.add_argument("--effective-max-distance", type=float, default=float(os.getenv("REFLECTVPR_EFFECTIVE_MAX_DISTANCE", "1.31")))
+    parser.add_argument("--real-real-eps", type=float, default=float(os.getenv("REFLECTVPR_REAL_REAL_EPS", "0.02")))
     return parser.parse_args()
 
 
@@ -49,7 +53,13 @@ def load_records(output_root: Path) -> list[dict]:
         except Exception:
             continue
         if isinstance(data, list):
-            records.extend(data)
+            for record in data:
+                records.append(record)
+                for candidate in record.get("training_candidates", []) or []:
+                    candidate_record = dict(record)
+                    candidate_record.update(candidate)
+                    candidate_record["parent_output_path"] = record.get("output_path")
+                    records.append(candidate_record)
     return records
 
 
@@ -96,6 +106,14 @@ def copy_selected_images(
     for index, source in enumerate(selected, 1):
         shutil.copy2(source, image_output_dir / f"{index:03d}__{source.name}")
     return selected
+
+
+def replace_selected_images(selected: list[Path], image_output_dir: Path) -> None:
+    image_output_dir.mkdir(parents=True, exist_ok=True)
+    for old in image_output_dir.glob("*.jpg"):
+        old.unlink()
+    for index, source in enumerate(selected, 1):
+        shutil.copy2(source, image_output_dir / f"{index:03d}__{source.name}")
 
 
 def build_eval_manifest(
@@ -227,6 +245,75 @@ def load_categories(pair_metrics_csv: Path, reference_summary: Path | None = Non
     return categories
 
 
+def load_image_metrics(
+    pair_metrics_csv: Path,
+    reference_summary: Path,
+    effective_min: float,
+    preferred_min: float,
+    effective_max: float,
+    real_real_eps: float,
+) -> dict[str, dict]:
+    metrics: dict[str, dict] = {}
+    if not pair_metrics_csv.is_file():
+        return metrics
+    thresholds = load_reference_thresholds(reference_summary)
+    with pair_metrics_csv.open(newline="", encoding="utf-8") as handle:
+        for row in csv.DictReader(handle):
+            generated = str(Path(row["positive_syn"]).resolve())
+            distance_text = row.get("d_real_syn_l2") or row.get("d_pos_anchor_real_syn_l2")
+            try:
+                distance = float(distance_text)
+            except (TypeError, ValueError):
+                continue
+            category = row.get("category") or classify_with_global_reference(distance, thresholds)
+            if row.get("anchor_real") == row.get("positive_real"):
+                category = classify_with_global_reference(distance, thresholds)
+
+            real_real_distance = None
+            for key in ("d_real_real_l2", "d_pos_anchor_real_real_l2", "d_anchor_positive_real_l2"):
+                if row.get(key):
+                    try:
+                        real_real_distance = float(row[key])
+                        break
+                    except ValueError:
+                        pass
+
+            clears_real_real_gate = (
+                real_real_distance is None
+                or distance >= real_real_distance - real_real_eps
+            )
+            in_effective_band = effective_min <= distance <= effective_max
+            in_preferred_band = preferred_min <= distance <= effective_max
+            effective = clears_real_real_gate and in_effective_band
+            metrics[generated] = {
+                "distance": distance,
+                "category": category,
+                "real_real_distance": real_real_distance,
+                "clears_real_real_gate": clears_real_real_gate,
+                "in_effective_band": in_effective_band,
+                "in_preferred_band": in_preferred_band,
+                "effective": effective,
+            }
+    return metrics
+
+
+def rank_effective_images(selected: list[Path], metrics: dict[str, dict], target: int) -> list[Path]:
+    eligible = []
+    for path in selected:
+        item = metrics.get(str(path.resolve()))
+        if not item or not item.get("effective"):
+            continue
+        eligible.append(path)
+    eligible.sort(
+        key=lambda path: (
+            bool(metrics[str(path.resolve())].get("in_preferred_band")),
+            float(metrics[str(path.resolve())].get("distance", 0.0)),
+        ),
+        reverse=True,
+    )
+    return eligible[:target]
+
+
 def load_gpu_memory(gpu_log: Path) -> list[int]:
     memory: list[int] = []
     if not gpu_log.is_file():
@@ -321,6 +408,7 @@ def main() -> None:
     anchor_index = build_anchor_index(args.paired_manifest)
     manifest_path, manifest_rows = build_eval_manifest(selected, record_by_final, anchor_index, args.output_root)
     categories: dict[str, str] = {}
+    image_metrics: dict[str, dict] = {}
     pair_metrics_csv = None
     if manifest_rows:
         try:
@@ -331,11 +419,27 @@ def main() -> None:
                 len(manifest_rows),
             )
             categories = load_categories(pair_metrics_csv, args.reference_summary)
+            image_metrics = load_image_metrics(
+                pair_metrics_csv,
+                args.reference_summary,
+                args.effective_min_distance,
+                args.preferred_min_distance,
+                args.effective_max_distance,
+                args.real_real_eps,
+            )
         except Exception as exc:
             fallback_csv = args.output_root.parent / "imagetest_distance" / "pair_metrics.csv"
             if fallback_csv.is_file():
                 pair_metrics_csv = fallback_csv
                 categories = load_categories(fallback_csv, args.reference_summary)
+                image_metrics = load_image_metrics(
+                    fallback_csv,
+                    args.reference_summary,
+                    args.effective_min_distance,
+                    args.preferred_min_distance,
+                    args.effective_max_distance,
+                    args.real_real_eps,
+                )
                 print(
                     f"[postprocess] ImAge distance analysis ended non-zero, "
                     f"but loaded existing pair metrics: {fallback_csv}",
@@ -343,17 +447,38 @@ def main() -> None:
                 )
             else:
                 print(f"[postprocess] ImAge distance analysis failed; keep ImAge=unknown labels: {exc}", flush=True)
+    effective_selected = rank_effective_images(selected, image_metrics, args.target_images) if image_metrics else selected
+    if image_metrics:
+        replace_selected_images(effective_selected, args.image_output_dir)
+        selected = effective_selected
     comparison_pairs = build_contact_sheet(selected, record_by_final, categories, args.contact_sheet)
     memory = load_gpu_memory(args.gpu_log)
     routes = Counter(str(record.get("route", "unknown")) for record in records)
     category_counts = Counter(categories.values())
+    candidate_count = len(finals)
+    passed_candidate_count = sum(
+        1
+        for final in finals
+        if bool(record_by_final.get(str(final.resolve()), {}).get("passed"))
+    )
+    effective_count = sum(1 for item in image_metrics.values() if item.get("effective")) if image_metrics else len(selected)
+    preferred_count = sum(1 for item in image_metrics.values() if item.get("in_preferred_band")) if image_metrics else 0
     summary = {
         "input_records": len(records),
-        "generated_final_images": len(finals),
+        "generated_final_images": candidate_count,
         "collected_images": len(selected),
         "target_images": args.target_images,
         "target_met": len(selected) >= args.target_images,
         "passed_only_selection": bool(args.passed_only),
+        "effective_sample_definition": "passed=true and ImAge d(real,syn) clears real-real-eps gate and falls in effective distance band",
+        "effective_distance_band": [args.effective_min_distance, args.effective_max_distance],
+        "preferred_distance_band": [args.preferred_min_distance, args.effective_max_distance],
+        "real_real_eps": args.real_real_eps,
+        "passed_candidates": passed_candidate_count,
+        "image_effective_candidates": effective_count,
+        "image_preferred_candidates": preferred_count,
+        "effective_utilization": (effective_count / candidate_count) if candidate_count else 0.0,
+        "selected_effective_utilization": (len(selected) / candidate_count) if candidate_count else 0.0,
         "routes": dict(routes),
         "passed": sum(bool(record.get("passed")) for record in records),
         "generation_failed": sum(bool(record.get("generation_failed")) for record in records),

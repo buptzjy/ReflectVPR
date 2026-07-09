@@ -75,8 +75,8 @@ def _route_ratios_from_env() -> dict[str, float]:
 
 TARGET_ROUTE_RATIOS = _route_ratios_from_env()
 TARGET_LIGHTX2V_RATIO = TARGET_ROUTE_RATIOS["dual"] + TARGET_ROUTE_RATIOS["local"]
-WEATHER_THRESHOLD = float(os.getenv("REFLECTVPR_WEATHER_THRESHOLD", "0.50"))
-OCCLUSION_THRESHOLD = float(os.getenv("REFLECTVPR_OCCLUSION_THRESHOLD", "0.50"))
+WEATHER_THRESHOLD = float(os.getenv("REFLECTVPR_WEATHER_THRESHOLD", "0.55"))
+OCCLUSION_THRESHOLD = float(os.getenv("REFLECTVPR_OCCLUSION_THRESHOLD", "0.58"))
 DEFICIT_WEIGHT = float(os.getenv("REFLECTVPR_DEFICIT_WEIGHT", "1.0"))
 CAPABILITY_WEIGHT = float(os.getenv("REFLECTVPR_CAPABILITY_WEIGHT", "0.25"))
 MIN_RATIO = float(os.getenv("REFLECTVPR_MIN_ROUTE_RATIO", "0.20"))
@@ -96,8 +96,13 @@ OCCLUSION_STRENGTH_DEBUG = os.getenv("REFLECTVPR_OCCLUSION_STRENGTH_DEBUG", "")
 DEBUG_ROUTE = os.getenv("REFLECTVPR_DEBUG_ROUTE", "dual").strip().lower()
 FORCE_ROUTE = os.getenv("REFLECTVPR_FORCE_ROUTE", "").strip().lower()
 FORCE_OCCLUSION = os.getenv("REFLECTVPR_FORCE_OCCLUSION", "").strip().lower()
+DUAL_FORCE_OCCLUSION = os.getenv("REFLECTVPR_DUAL_FORCE_OCCLUSION", "vehicle").strip().lower()
 GLOBAL_ICLIGHT_HIGHRES_DENOISE = float(os.getenv("REFLECTVPR_GLOBAL_ICLIGHT_DENOISE", "0.30"))
 GLOBAL_RAIN_ICLIGHT_HIGHRES_DENOISE = float(os.getenv("REFLECTVPR_GLOBAL_RAIN_ICLIGHT_DENOISE", "0.22"))
+GENERATE_GLOBAL_COMPANION_FOR_DUAL = os.getenv(
+    "REFLECTVPR_GLOBAL_COMPANION_FOR_DUAL",
+    "1",
+).lower() in {"1", "true", "yes"}
 
 
 SYSTEM_PROMPT = """You are a strict VPR image augmentation capability scorer.
@@ -554,6 +559,68 @@ Return this JSON schema:
             "artifact_ok": getattr(final_eval, "artifact_ok", True),
             "rounds_used": rounds[-1]["round"],
         })
+        record["training_candidates"] = [
+            {
+                "route": route,
+                "weather": decision.get("weather"),
+                "occlusion": decision.get("occlusion"),
+                "output_path": str(final_save_path),
+                "source_path": str(image_path),
+                "passed": final_eval.passed,
+                "s_geo": final_eval.s_geo,
+                "s_div": final_eval.s_div,
+                "geo_ok": final_eval.geo_ok,
+                "div_ok": final_eval.div_ok,
+                "artifact_ok": getattr(final_eval, "artifact_ok", True),
+            }
+        ]
+
+        if (
+            GENERATE_GLOBAL_COMPANION_FOR_DUAL
+            and route == Route.DUAL.value
+            and self.iclight is not None
+            and self.evaluator is not None
+        ):
+            companion_weather = decision.get("weather")
+            if companion_weather == "rainy_night":
+                companion_weather = "rain"
+            companion_decision = dict(decision)
+            companion_decision["route"] = Route.GLOBAL.value
+            companion_decision["weather"] = self._choose_weather(companion_weather)
+            companion_decision["occlusion"] = None
+            companion_prompt = build_structured_prompt(
+                route=Route.GLOBAL.value,
+                weather=companion_decision.get("weather"),
+                occlusion=None,
+                position=decision.get("position", ""),
+                base_prompt=decision.get("reason", ""),
+                experience_bank=self.experience_bank,
+            )
+            companion_image = self._generate(ref, companion_prompt, Route.GLOBAL.value, decision=companion_decision)
+            if companion_image.size != ref.size:
+                companion_image = companion_image.resize(ref.size, Image.Resampling.LANCZOS)
+            companion_eval = self.evaluator.evaluate(ref, companion_image, entry=companion_decision)
+            companion_dir = output_root / Route.GLOBAL.value
+            companion_dir.mkdir(parents=True, exist_ok=True)
+            companion_name = f"{stem}__global_{companion_decision.get('weather')}__companion_final.jpg"
+            companion_path = companion_dir / companion_name
+            companion_image.save(companion_path, quality=95)
+            record["training_candidates"].append(
+                {
+                    "route": Route.GLOBAL.value,
+                    "weather": companion_decision.get("weather"),
+                    "occlusion": None,
+                    "output_path": str(companion_path),
+                    "source_path": str(image_path),
+                    "passed": companion_eval.passed,
+                    "s_geo": companion_eval.s_geo,
+                    "s_div": companion_eval.s_div,
+                    "geo_ok": companion_eval.geo_ok,
+                    "div_ok": companion_eval.div_ok,
+                    "artifact_ok": getattr(companion_eval, "artifact_ok", True),
+                    "companion_for": str(final_save_path),
+                }
+            )
 
         if collect_bad and not final_eval.passed:
             self._collect_bad_case(output_root, image_path, final_path, record)
@@ -856,6 +923,12 @@ Return this JSON schema:
             and scheduled.get("occlusion")
         ):
             scheduled["occlusion"] = FORCE_OCCLUSION
+        elif (
+            route == Route.DUAL.value
+            and DUAL_FORCE_OCCLUSION in {"vehicle", "person"}
+            and scheduled.get("occlusion")
+        ):
+            scheduled["occlusion"] = DUAL_FORCE_OCCLUSION
 
         scheduled["prompt"] = build_structured_prompt(
             route=route,
@@ -908,6 +981,12 @@ Return this JSON schema:
                 decision["occlusion"] = chosen
             if FORCE_OCCLUSION in {"vehicle", "person"} and decision.get("occlusion"):
                 decision["occlusion"] = FORCE_OCCLUSION
+            elif (
+                route == Route.DUAL.value
+                and DUAL_FORCE_OCCLUSION in {"vehicle", "person"}
+                and decision.get("occlusion")
+            ):
+                decision["occlusion"] = DUAL_FORCE_OCCLUSION
 
         if route == Route.DUAL.value:
             decision["weather"] = choose_weather_from_experience(

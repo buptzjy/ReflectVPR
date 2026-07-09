@@ -106,7 +106,7 @@ start_service \
 if [ "${REFLECTVPR_PREWARM_LIGHTX2V:-1}" = "1" ]; then
   (
     port="${LIGHTX2V_PORT:-8001}"
-    timeout="${REFLECTVPR_SERVICE_TIMEOUT:-1800}"
+    timeout="${REFLECTVPR_SERVICE_TIMEOUT:-0}"
     start_ts=$(date +%s)
     while true; do
       health_json=$(curl -fsS "http://127.0.0.1:${port}/health" 2>/dev/null || true)

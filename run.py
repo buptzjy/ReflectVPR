@@ -21,6 +21,16 @@ SCRIPTS_DIR = ROOT / "scripts"
 sys.path.insert(0, str(AGENT_DIR))
 sys.path.insert(0, str(SCRIPTS_DIR))
 
+# Large-scale generation defaults. Shell scripts can still override these. The
+# core runner keeps normal routing, while the dual branch uses the production v4
+# vehicle policy in agent/prompt_rules.
+os.environ.setdefault("REFLECTVPR_DUAL_PROMPT_STRATEGY", "dual_hard_v4")
+os.environ.setdefault("REFLECTVPR_KEEP_SERVICES", "1")
+os.environ.setdefault("REFLECTVPR_SERVICE_TIMEOUT", "0")
+os.environ.setdefault("LIGHTX2V_READY_TIMEOUT", "0")
+os.environ.setdefault("REFLECTVPR_SELECT_PASSED_ONLY", "1")
+os.environ.setdefault("REFLECTVPR_DUAL_FORCE_OCCLUSION", "vehicle")
+
 from agent import SceneAugmentAgent  # noqa: E402
 from mine_experience import mine  # noqa: E402
 from prompt_rules import PROMPT_POLICY_VERSION as DEFAULT_PROMPT_POLICY_VERSION  # noqa: E402
@@ -103,6 +113,8 @@ GENERATE_IDLE_LIMIT = int(os.getenv("REFLECTVPR_GENERATE_IDLE_LIMIT", "120"))
 AGGREGATE_EVERY = int(os.getenv("REFLECTVPR_AGGREGATE_EVERY", "50"))
 CLAIM_TTL_SECONDS = int(os.getenv("REFLECTVPR_CLAIM_TTL_SECONDS", "3600"))
 MAX_ROUTER_FAILED_STREAK = int(os.getenv("REFLECTVPR_MAX_ROUTER_FAILED_STREAK", "20"))
+GENERATE_TOP_FRACTION = float(os.getenv("REFLECTVPR_GENERATE_TOP_FRACTION", "0.25"))
+GENERATE_MIN_IMAGES = int(os.getenv("REFLECTVPR_GENERATE_MIN_IMAGES", "1"))
 
 # Real experiments should fail loudly if a generation service is not loaded.
 # This prevents early startup/mock images with black rectangles from entering output.
@@ -112,7 +124,7 @@ os.environ.setdefault("HF_HOME", "/media/data1/zhangjingyi/.cache/huggingface")
 os.environ.setdefault("NO_PROXY", "127.0.0.1,localhost")
 os.environ.setdefault("no_proxy", "127.0.0.1,localhost")
 
-SERVICE_TIMEOUT = int(os.getenv("REFLECTVPR_SERVICE_TIMEOUT", "1800"))
+SERVICE_TIMEOUT = int(os.getenv("REFLECTVPR_SERVICE_TIMEOUT", "0"))
 SERVICE_PORTS = {
     "iclight": int(os.getenv("ICLIGHT_PORT", "8002")),
     "lightx2v": int(os.getenv("LIGHTX2V_PORT", "8001")),
@@ -135,6 +147,14 @@ DECISION_KEYS = {
     "street_scene_quality",
     "occlusion_feasibility",
     "weather_feasibility",
+    "road_visibility",
+    "sky_visibility",
+    "vegetation_level",
+    "facade_density",
+    "close_building",
+    "distant_landmarks_readable",
+    "global_weather_risk",
+    "safe_global_weathers",
     "balance_reason",
     "risk_score",
     "risk_flags",
@@ -194,10 +214,10 @@ def service_loaded(port: int) -> tuple[bool, str]:
 
 
 def wait_for_services() -> None:
-    deadline = time.time() + SERVICE_TIMEOUT
+    deadline = None if SERVICE_TIMEOUT <= 0 else time.time() + SERVICE_TIMEOUT
     pending = set(SERVICE_PORTS)
     last_messages = {}
-    while pending and time.time() < deadline:
+    while pending and (deadline is None or time.time() < deadline):
         for name in list(pending):
             port = SERVICE_PORTS[name]
             if not port_open(port):
@@ -485,6 +505,76 @@ def select_images() -> list[Path]:
     return selected
 
 
+def _score_text(value: object, weights: dict[str, float], default: float = 0.0) -> float:
+    return weights.get(str(value or "").strip().lower(), default)
+
+
+def decision_priority_score(record: dict) -> float:
+    route = str(record.get("route", ""))
+    if route in {"skip", "router_failed"} or record.get("bad_image"):
+        return -100.0
+
+    weather_score = float(record.get("weather_score") or 0.0)
+    occlusion_score = float(record.get("occlusion_score") or 0.0)
+    if weather_score > 1.0:
+        weather_score /= 10.0
+    if occlusion_score > 1.0:
+        occlusion_score /= 10.0
+
+    score = 0.0
+    score += 2.0 * _score_text(record.get("street_scene_quality"), {"good": 1.0, "partial": 0.45, "bad": -1.0})
+    score += 1.2 * _score_text(record.get("road_visibility"), {"clear": 1.0, "partial": 0.45, "none": -1.0})
+    score += 1.0 * _score_text(record.get("occlusion_feasibility"), {"high": 1.0, "medium": 0.55, "low": 0.1, "none": -1.0})
+    score += 0.8 * _score_text(record.get("weather_feasibility"), {"high": 1.0, "medium": 0.55, "low": 0.1, "none": -0.4})
+    score += 0.6 * _score_text(record.get("distant_landmarks_readable"), {"high": 1.0, "medium": 0.5, "low": -0.2})
+    score += 0.6 * weather_score + 0.9 * occlusion_score
+
+    text = " ".join(
+        str(record.get(key, "") or "").lower()
+        for key in ("reason", "skip_reason", "position", "prompt")
+    )
+    positive_terms = (
+        "building", "facade", "storefront", "street", "road", "lane", "sidewalk",
+        "curb", "parking", "crosswalk", "intersection", "sign", "landmark",
+    )
+    negative_terms = (
+        "pure sky", "sky fragment", "pure road", "road only", "blur", "blurry",
+        "close-up", "close facade", "wall", "window crop", "door crop",
+        "no clear street", "no valid street surface",
+    )
+    score += min(1.5, 0.18 * sum(term in text for term in positive_terms))
+    score -= 0.8 * sum(term in text for term in negative_terms)
+    if str(record.get("close_building", "")).strip().lower() == "yes":
+        score -= 1.0
+    risk_score = record.get("risk_score")
+    try:
+        score -= 0.25 * float(risk_score or 0.0)
+    except (TypeError, ValueError):
+        pass
+    return score
+
+
+def top_generation_sources(selected: list[Path], decision_by_source: dict[str, dict]) -> set[str] | None:
+    if GENERATE_TOP_FRACTION <= 0 or GENERATE_TOP_FRACTION >= 1:
+        return None
+    scored = []
+    missing = 0
+    for image_path in selected:
+        key = source_key_for_path(image_path)
+        record = decision_by_source.get(key)
+        if not record:
+            missing += 1
+            continue
+        scored.append((decision_priority_score(record), key))
+    if missing:
+        return set()
+    scored = [item for item in scored if item[0] > -100.0]
+    scored.sort(reverse=True)
+    keep = max(GENERATE_MIN_IMAGES, int(round(len(selected) * GENERATE_TOP_FRACTION)))
+    keep = min(keep, len(scored))
+    return {key for _, key in scored[:keep]}
+
+
 def prepare_dirs() -> None:
     for city in CITY_NAMES:
         root = city_output_root(city)
@@ -518,6 +608,35 @@ def generation_failure_record(image_path: Path, output_root: Path, decision: dic
         "generation_traceback": traceback.format_exc(limit=8),
     })
     failed_path.write_text(json.dumps(record, indent=2, ensure_ascii=False), encoding="utf-8")
+    return record
+
+
+def preselection_skip_record(image_path: Path, output_root: Path, decision: dict) -> dict:
+    skip_dir = output_root / "skip"
+    skip_dir.mkdir(parents=True, exist_ok=True)
+    skip_path = skip_dir / f"{image_path.stem}__preselection_skip.json"
+    record = dict(decision)
+    record.update({
+        "file_name": image_path.name,
+        "city": image_path.parent.name,
+        "source_path": str(image_path),
+        "route": "skip",
+        "output_path": str(skip_path),
+        "final_reflect_path": str(skip_path),
+        "final_prompt": decision.get("prompt", ""),
+        "reflection_rounds": [],
+        "passed": False,
+        "s_geo": 0.0,
+        "s_div": 0.0,
+        "geo_ok": False,
+        "div_ok": False,
+        "artifact_ok": False,
+        "rounds_used": 0,
+        "preselection_skipped": True,
+        "preselection_score": decision_priority_score(decision),
+        "skip_reason": "below_large_scale_real_image_priority_cutoff",
+    })
+    skip_path.write_text(json.dumps(record, indent=2, ensure_ascii=False), encoding="utf-8")
     return record
 
 
@@ -605,6 +724,7 @@ def run_generation() -> None:
     while True:
         did_work = False
         missing_decisions = 0
+        generation_sources = top_generation_sources(selected, decision_by_source)
         for idx, image_path in enumerate(selected, 1):
             source_key = source_key_for_path(image_path)
             city = image_path.parent.name
@@ -686,6 +806,19 @@ def run_generation() -> None:
                 atomic_write_json(record_path("reflects", image_path), record)
                 if not RETRY_ROUTER_FAILED:
                     completed.add(source_key)
+                continue
+
+            if generation_sources == set() and len(decision_by_source) < len(selected):
+                continue
+
+            if generation_sources is not None and source_key not in generation_sources:
+                record = preselection_skip_record(image_path, city_root, decision)
+                record["prompt_policy_version"] = PROMPT_POLICY_VERSION
+                atomic_write_json(record_path("reflects", image_path), record)
+                reflect_records_by_city.setdefault(city, []).append(record)
+                completed.add(source_key)
+                did_work = True
+                processed_since_aggregate += 1
                 continue
 
             claim = try_claim("generate", image_path)
@@ -829,6 +962,7 @@ def main() -> None:
     print("[config] per-city outputs: decision.json reflect.json experience_bank.json under output_root/<city>/", flush=True)
     print(f"[config] experience_input_json={EXPERIENCE_INPUT_JSON}", flush=True)
     print(f"[config] prompt_policy_version={PROMPT_POLICY_VERSION}", flush=True)
+    print(f"[config] generate_top_fraction={GENERATE_TOP_FRACTION}", flush=True)
     if CLEAR_OUTPUT:
         clear_output_root()
     if MODE == "aggregate":
